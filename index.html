@@ -599,6 +599,11 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
     <tbody id="cd-casa"></tbody></table>
   </div>
   <div class="panel">
+    <h2>Por categoria de mercado</h2>
+    <table><thead><tr><th>Categoria</th><th class="num">Apostas</th><th class="num">Greens</th><th class="num">Reds</th><th class="num">Taxa de acerto</th><th class="num">Odd média</th><th class="num">P/L</th></tr></thead>
+    <tbody id="cd-cat"></tbody></table>
+  </div>
+  <div class="panel">
     <h2>Por tipo de aposta</h2>
     <table><thead><tr><th>Tipo de aposta</th><th class="num">Apostas</th><th class="num">Greens</th><th class="num">Reds</th><th class="num">Odd média</th><th class="num">P/L</th></tr></thead>
     <tbody id="cd-tipo"></tbody></table>
@@ -966,7 +971,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 
 <script>
 /* ============ CONFIGURAÇÃO DO SUPABASE ============ */
-const APP_VERSAO = "v23";
+const APP_VERSAO = "v24";
 const SUPABASE_URL = "https://zfsmrhsarjzxnsntfwog.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umDFIXKEgoQHjDu8UY-wDA_Sdno9GtB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2366,6 +2371,23 @@ function timesDoJogo(t){
   if(!t) return [];
   return String(t).split(/\s+(?:x|×|vs\.?|v)\s+|\s+[-—]\s+/i).map(z=>z.trim()).filter(Boolean).slice(0,2);
 }
+function categoriaDe(sel){
+  if(sel.categoria && String(sel.categoria).trim()) return sel.categoria.trim();
+  const t = ((sel.tipo||"")+" "+(sel.obs_selecao||"")).toLowerCase();
+  if(/chute.*gol|no alvo|on target/.test(t)) return "Chutes ao Gol";
+  if(/chute|finaliza|shot/.test(t)) return "Chutes";
+  if(/desarme|tackle/.test(t)) return "Desarmes";
+  if(/defesa|save/.test(t)) return "Defesas";
+  if(/passe/.test(t)) return "Passes";
+  if(/falta/.test(t)) return "Faltas";
+  if(/cart[aã]o|cart[oõ]es|card/.test(t)) return "Cartões";
+  if(/escanteio|corner/.test(t)) return "Escanteios";
+  if(/ambas marcam|btts/.test(t)) return "Ambas Marcam";
+  if(/handicap/.test(t)) return "Handicap";
+  if(/gol|total|over|under|mais de|menos de/.test(t)) return "Gols";
+  if(/resultado|vencedor|match odds|placar|1x2|dupla chance/.test(t)) return "Resultado";
+  return "Outros";
+}
 function agrupaCasa(list, keyFn){
   const m = new Map();
   list.forEach(b=>{
@@ -2530,6 +2552,15 @@ function renderCasaDash(){
   /* por casa */
   const casas = agrupaCasa(list, x=> x.casa||"Sem casa").sort((a,b)=>b[1].pl-a[1].pl);
   $("cd-casa").innerHTML = casas.length? casas.map(([n,o])=>linha(n,o,true,true)).join("")
+    : `<tr><td colspan="7" class="empty">Sem apostas no período.</td></tr>`;
+  /* por categoria de mercado */
+  const cats = agrupaCasa(list, x=> (x.selecoes||[]).map(z=>categoriaDe(z))).sort((a,b)=>b[1].pl-a[1].pl);
+  $("cd-cat").innerHTML = cats.length? cats.map(([n,o])=>
+    `<tr><td>${esc(n)}</td><td class="num">${o.n}</td>
+      <td class="num pos">${o.g}</td><td class="num neg">${o.r}</td>
+      <td class="num">${(o.g+o.r)? pct(o.g/(o.g+o.r)) : "—"}</td>
+      <td class="num">${oddFmt(o.oddN? o.oddS/o.oddN:null)}</td>
+      <td class="num ${cls(o.pl)}">${(o.pl>0?"+":"")+fmt(o.pl)}</td></tr>`).join("")
     : `<tr><td colspan="7" class="empty">Sem apostas no período.</td></tr>`;
   /* por tipo de aposta */
   const tipos = agrupaCasa(list, x=> (x.selecoes||[]).map(z=>z.tipo).filter(Boolean)).sort((a,b)=>b[1].pl-a[1].pl);
