@@ -616,6 +616,11 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
     <div class="panel"><h2>Times menos lucrativos</h2><div id="ca-times-low"></div></div>
   </div>
   <div class="panel">
+    <h2>Por fonte</h2>
+    <table><thead><tr><th>Fonte</th><th class="num">Apostas</th><th class="num">G</th><th class="num">R</th><th class="num">Taxa de acerto</th><th class="num">Odd média</th><th class="num">Investido</th><th class="num">P/L</th></tr></thead>
+    <tbody id="ca-fonte"></tbody></table>
+  </div>
+  <div class="panel">
     <h2>Por jogador</h2>
     <table><thead><tr><th>Jogador</th><th>Clube</th><th>Posição</th><th>Mercado</th><th class="num">Apostas</th><th class="num">G</th><th class="num">R</th><th class="num">Odd média</th><th class="num">P/L</th></tr></thead>
     <tbody id="ca-jog"></tbody></table>
@@ -671,6 +676,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
           <option value="cashout">Cashout</option>
         </select></div>
       <div class="c2" id="cs-ret-wrap" style="display:none"><label>Valor recebido no cashout (R$)</label><input type="number" step="0.01" id="cs-retorno" placeholder="Ex.: 35"></div>
+      <div class="c2"><label>Fonte</label><input list="dl-fontes" id="cs-fonte" placeholder="Ex.: Junior, Bruno, Minha análise"></div>
       <div class="c4"><label>Observação</label><input id="cs-obs" placeholder="Anotações da aposta…"></div>
       <div class="c6" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <button class="btn" id="cs-save">Adicionar aposta</button>
@@ -952,6 +958,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 <datalist id="dl-comp-all"></datalist>
 <datalist id="dl-casas"></datalist>
 <datalist id="dl-estr-ciclos"></datalist>
+<datalist id="dl-fontes"></datalist>
 <datalist id="dl-pais"></datalist>
 <datalist id="dl-times"></datalist>
 <datalist id="dl-forma"></datalist>
@@ -959,7 +966,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 
 <script>
 /* ============ CONFIGURAÇÃO DO SUPABASE ============ */
-const APP_VERSAO = "v22";
+const APP_VERSAO = "v23";
 const SUPABASE_URL = "https://zfsmrhsarjzxnsntfwog.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umDFIXKEgoQHjDu8UY-wDA_Sdno9GtB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1504,6 +1511,7 @@ function fillDatalists(){
   set("dl-forma","estrategias", db.bets.map(b=>b.forma));
   set("dl-merc","mercados", db.bets.map(b=>b.mercado));
   set("dl-casas","casas", db.casa.map(b=>b.casa));
+  $("dl-fontes").innerHTML = [...new Set(["Junior","Bruno","Minha análise",...db.casa.map(b=>b.fonte).filter(Boolean)])].map(v=>`<option value="${esc(v)}">`).join("");
   fillEstrCiclos();
   $("dl-comp-all").innerHTML = cad.campeonatos.map(c=>`<option value="${esc(c.nome)}">`).join("");
 }
@@ -2267,7 +2275,7 @@ function clearCasaForm(){
   casaEditId=null; casaSels=[novaSel()];
   $("cs-data").value = new Date().toISOString().slice(0,10);
   $("cs-hora").value = new Date().toTimeString().slice(0,5);
-  ["cs-casa","cs-valor","cs-pct","cs-retorno","cs-obs"].forEach(id=>$(id).value="");
+  ["cs-casa","cs-valor","cs-pct","cs-retorno","cs-obs","cs-fonte"].forEach(id=>$(id).value="");
   $("cs-estado").value="pendente"; $("cs-ret-wrap").style.display="none";
   document.querySelectorAll(".fmt button").forEach(x=>x.classList.toggle("on", x.dataset.f==="simples"));
   $("cs-title").textContent="Adicionar aposta";
@@ -2291,6 +2299,7 @@ $("cs-save").onclick = async ()=>{
     formato: casaSels.length>1 ? "multipla" : fmtAtivo(),
     valor, estado,
     retorno: estado==="cashout" ? (+$("cs-retorno").value||0) : null,
+    fonte:$("cs-fonte").value.trim(),
     obs:$("cs-obs").value.trim(),
     selecoes: selsOk.map(({det,...x})=>x)
   };
@@ -2326,6 +2335,7 @@ window.editCasa = id=>{
   $("cs-estado").value=b.estado||"pendente";
   $("cs-ret-wrap").style.display = b.estado==="cashout"?"block":"none";
   $("cs-retorno").value=b.retorno??""; $("cs-obs").value=b.obs||"";
+  $("cs-fonte").value=b.fonte||"";
   const f = b.formato==="multipla" ? "simples" : (b.formato||"simples");
   document.querySelectorAll(".fmt button").forEach(x=>x.classList.toggle("on", x.dataset.f===f));
   casaSels = (b.selecoes||[]).map(x=>({...novaSel(), ...x}));
@@ -2401,7 +2411,7 @@ function renderCasaEntradas(){
       if(x.competicao) partes.push(esc(x.competicao));
       return partes.join(" · ");
     };
-    const detalhe = sels.length? `<div style="font-size:11.5px;color:var(--dim)">${sels.map(selDesc).filter(Boolean).join(" | ")||""}${b.obs?` — ${esc(b.obs)}`:""}</div>`:"";
+    const detalhe = sels.length? `<div style="font-size:11.5px;color:var(--dim)">${sels.map(selDesc).filter(Boolean).join(" | ")||""}${b.fonte?` — 👤 ${esc(b.fonte)}`:""}${b.obs?` — ${esc(b.obs)}`:""}</div>`:"";
     const oddT=oddTotalDe(sels);
     const fLabel = b.formato==="multipla"? "Múltipla" : b.formato==="lay"? "Lay" : b.formato==="back"? "Back" : "Simples";
     return `<tr class="${b.estado==="green"?"g":(b.estado==="red"?"r":"")}">
@@ -2540,6 +2550,16 @@ function renderCasaAnalises(){
     </div>`;
   $("ca-times-top").innerHTML = times.filter(t=>t[1].pl>0).slice(0,10).map(rowT).join("") || `<div class="empty">Sem times lucrativos no período.</div>`;
   $("ca-times-low").innerHTML = times.filter(t=>t[1].pl<0).slice(-10).reverse().map(rowT).join("") || `<div class="empty">Sem times no vermelho no período.</div>`;
+  /* por fonte */
+  const fontes = agrupaCasa(list, x=> (x.fonte||"Sem fonte")).sort((a,b)=>b[1].pl-a[1].pl);
+  $("ca-fonte").innerHTML = fontes.length? fontes.map(([n,o])=>
+    `<tr><td>👤 ${esc(n)}</td><td class="num">${o.n}</td>
+      <td class="num pos">${o.g}</td><td class="num neg">${o.r}</td>
+      <td class="num">${(o.g+o.r)? pct(o.g/(o.g+o.r)) : "—"}</td>
+      <td class="num">${oddFmt(o.oddN? o.oddS/o.oddN:null)}</td>
+      <td class="num">${fmt(o.inv)}</td>
+      <td class="num ${cls(o.pl)}">${(o.pl>0?"+":"")+fmt(o.pl)}</td></tr>`).join("")
+    : `<tr><td colspan="8" class="empty">Sem apostas no período.</td></tr>`;
   /* por jogador */
   const jm = new Map();
   list.forEach(b=> (b.selecoes||[]).forEach(z=>{
