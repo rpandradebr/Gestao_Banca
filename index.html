@@ -153,6 +153,7 @@
     <button data-aba="analises">💾 Minhas análises</button>
     <button data-aba="importar">📥 Importar CSV</button>
     <button data-aba="histsug">📋 Histórico de sugestões</button>
+    <button data-aba="estats">📊 Estatísticas por jogo</button>
   </nav>
 
   <!-- ================= AO VIVO ================= -->
@@ -342,6 +343,45 @@
     <div id="imp-preview"></div>
   </section>
 
+  <!-- ================= ESTATÍSTICAS POR JOGO ================= -->
+  <section id="aba-estats">
+    <h2>Rankings de estatísticas detalhadas</h2>
+    <p style="font-size:14px;color:var(--chalk-dim);margin-bottom:12px">
+      Escolha a data, o campeonato e a estatística: o sistema busca os dados de cada jogo e ranqueia.
+      Funciona melhor com jogos já encerrados e ligas grandes (onde a cobertura é completa).
+      Cada jogo custa 3 requisições — o campeonato limita o volume.
+    </p>
+    <div class="linha c4">
+      <div><label for="es-data">Data</label><input type="date" id="es-data"></div>
+      <div><label for="es-liga">Campeonato</label><select id="es-liga"><option value="">Carregue os jogos…</option></select></div>
+      <div><label for="es-tipo">Estatística</label>
+        <select id="es-tipo">
+          <optgroup label="Por time">
+            <option value="Yellow Cards">🟨 Cartões amarelos</option>
+            <option value="Red Cards">🟥 Cartões vermelhos</option>
+            <option value="Total Shots">🎯 Chutes (time)</option>
+            <option value="Shots on Goal">🎯 Chutes no gol (time)</option>
+            <option value="Fouls">⚠️ Faltas</option>
+            <option value="Throwins">↩️ Laterais</option>
+            <option value="Offsides">🚩 Impedimentos</option>
+            <option value="Total passes">🔄 Passes</option>
+            <option value="Goal Kicks">🥅 Tiro de meta</option>
+            <option value="Corner Kicks">📐 Escanteios</option>
+            <option value="Ball Possession">⏱️ Posse de bola</option>
+          </optgroup>
+          <optgroup label="Por jogador">
+            <option value="P:desarmes">🛡️ Desarmes (jogador)</option>
+            <option value="P:chutes">🎯 Chutes (jogador)</option>
+          </optgroup>
+        </select></div>
+      <div style="align-self:end"><button class="acao" id="btn-carregar-es">Carregar jogos</button></div>
+    </div>
+    <div style="margin-bottom:12px"><button class="acao" id="btn-rankear-es" disabled>📊 Gerar ranking</button></div>
+    <div id="es-aviso"></div>
+    <div id="es-status" style="font-size:13px;color:var(--chalk-dim);margin-bottom:8px"></div>
+    <div id="es-resultado"></div>
+  </section>
+
   <!-- ================= HISTÓRICO DE SUGESTÕES ================= -->
   <section id="aba-histsug">
     <h2>Histórico de sugestões — green / red automático</h2>
@@ -368,7 +408,7 @@
 // ==========================================================
 // CONFIGURAÇÃO — preencha com os dados do SEU projeto Supabase
 // ==========================================================
-const APP_VERSAO = "v3.14";
+const APP_VERSAO = "v3.15";
 const SUPABASE_URL = "https://numdfazhxvykfemnvtxf.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_bGpo0XBNosRx9H4vwvPvvA_uPQL6Nph";
 const EDGE_URL = SUPABASE_URL + "/functions/v1/scanner";
@@ -1885,6 +1925,84 @@ if ($('av-auto')) $('av-auto').addEventListener('change', (e) => {
   if (e.target.checked){ avTimer = setInterval(carregarAoVivo, 30000); carregarAoVivo(); }
 });
 window.carregarAoVivo = carregarAoVivo;
+
+
+// ==========================================================
+// ABA ESTATÍSTICAS POR JOGO — rankings detalhados
+// ==========================================================
+$('es-data').value = hojeISO();
+let esJogos = [];
+
+$('btn-carregar-es').addEventListener('click', async () => {
+  const b = $('btn-carregar-es'); b.disabled = true;
+  aviso($('es-aviso'), ''); $('es-resultado').innerHTML='';
+  try{
+    const r = await chamarEdge({ acao:'grade', data: $('es-data').value });
+    esJogos = (r.jogos ?? []).filter(j => !ehCategoriaDeBase(j));
+    const ligas = [...new Set(esJogos.map(j => `${j.pais} — ${j.liga}`))].sort();
+    $('es-liga').innerHTML = '<option value="">Escolha o campeonato</option>' +
+      ligas.map(l => `<option>${l}</option>`).join('');
+    $('btn-rankear-es').disabled = false;
+    $('es-status').textContent = `${esJogos.length} jogos carregados. Escolha o campeonato e a estatística, depois gere o ranking.`;
+  } catch(e){ aviso($('es-aviso'), 'Falha: ' + e.message, 'erro'); }
+  finally{ b.disabled = false; }
+});
+
+$('btn-rankear-es').addEventListener('click', async () => {
+  const liga = $('es-liga').value;
+  const tipo = $('es-tipo').value;
+  if (!liga){ aviso($('es-aviso'), 'Escolha um campeonato primeiro (para limitar o volume de requisições).', 'erro'); return; }
+  const jogos = esJogos.filter(j => `${j.pais} — ${j.liga}` === liga && ['FT','AET','PEN'].includes(j.status));
+  if (!jogos.length){ aviso($('es-aviso'), 'Nenhum jogo encerrado neste campeonato nesta data. Estatísticas detalhadas só existem para jogos já disputados.', 'erro'); return; }
+
+  const b = $('btn-rankear-es'); b.disabled = true;
+  aviso($('es-aviso'), ''); $('es-resultado').innerHTML='';
+  const ehJogador = tipo.startsWith('P:');
+  const linhas = [];
+  try{
+    for (let i=0; i<jogos.length; i++){
+      $('es-status').textContent = `⏳ Buscando ${i+1}/${jogos.length} jogos…`;
+      const j = jogos[i];
+      const r = await chamarEdge({ acao:'estatisticas_partida', fixture: j.fixture_id });
+      if (ehJogador){
+        const campo = tipo.split(':')[1];
+        (r.jogadores ?? []).forEach(t => {
+          (t.lista ?? []).forEach(p => {
+            const v = p[campo];
+            if (v != null && v !== 0) linhas.push({ jogo: `${j.mandante} x ${j.visitante}`, quem: `${p.nome} (${t.time})`, valor: v });
+          });
+        });
+      } else {
+        (r.times ?? []).forEach(t => {
+          let v = t.stats?.[tipo];
+          if (v == null) return;
+          const num = typeof v === 'string' && v.includes('%') ? parseInt(v) : Number(v);
+          linhas.push({ jogo: `${j.mandante} x ${j.visitante}`, quem: t.time, valor: num, exibir: v });
+        });
+      }
+    }
+    linhas.sort((a,c) => c.valor - a.valor);
+    if (!linhas.length){
+      aviso($('es-aviso'), 'Sem dados desta estatística para os jogos deste campeonato/data. Pode ser cobertura da liga (estatística de jogador só nas grandes ligas).', 'erro');
+      $('es-status').textContent = '';
+    } else {
+      const nomeTipo = $('es-tipo').selectedOptions[0].textContent;
+      $('es-resultado').innerHTML = `<h3>${nomeTipo} — ${liga} (${$('es-data').value})</h3>
+        <div class="tabela-scroll"><table>
+        <tr><th>#</th><th>${ehJogador?'Jogador':'Time'}</th><th>Jogo</th><th>${nomeTipo}</th></tr>
+        ${linhas.slice(0,40).map((l,i) => `<tr>
+          <td>${i+1}</td><td><b>${l.quem}</b></td>
+          <td style="color:var(--chalk-dim)">${l.jogo}</td>
+          <td style="font-family:'IBM Plex Mono',monospace;color:var(--amber)"><b>${l.exibir ?? l.valor}</b></td>
+        </tr>`).join('')}
+        </table></div>`;
+      $('es-status').textContent = `✅ ${linhas.length} registros de ${jogos.length} jogos.`;
+    }
+  } catch(e){ aviso($('es-aviso'), 'Falha: ' + e.message, 'erro'); }
+  finally{ b.disabled = false; }
+});
+
+window.carregarAoVivo = window.carregarAoVivo || (()=>{});
 
 </script>
 </body>
