@@ -745,6 +745,20 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
       <tbody id="p-meses"></tbody>
     </table>
   </div>
+  <div class="panel">
+    <h2>Gestão por filiais</h2>
+    <p class="hint" style="margin-bottom:12px">Divida a banca em filiais por estratégia (ex.: Gols, Lay 0x0, Juros Compostos), cada uma com seu valor alocado. Marque a filial ao lançar a entrada e acompanhe cada uma separadamente. <span id="fil-aloc-hint"></span></p>
+    <table><thead><tr><th>Filial</th><th class="num">Alocado</th><th class="num">Entradas</th><th class="num">G</th><th class="num">R</th><th class="num">P/L</th><th class="num">Banca da filial</th><th class="num">ROI</th><th></th></tr></thead>
+    <tbody id="fil-tbody"></tbody></table>
+    <div class="formgrid" style="margin-top:14px">
+      <div class="c3"><label id="fil-f-label">Nova filial</label><input id="fil-nome" placeholder="Ex.: Gols, Lay 0x0, Juros Compostos"></div>
+      <div class="c2"><label>Valor alocado (R$)</label><input type="number" step="0.01" id="fil-alocado"></div>
+      <div class="c2" style="align-self:end;display:flex;gap:8px">
+        <button class="btn" id="fil-save">Salvar filial</button>
+        <button class="btn ghost" id="fil-cancel" style="display:none">Cancelar</button>
+      </div>
+    </div>
+  </div>
 </section>
 
 <section id="tab-entradas" class="tab">
@@ -761,6 +775,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
       <div class="c2"><label>Tipo</label><select id="f-tipo"><option>Pré Live</option><option>Live</option></select></div>
       <div class="c2"><label>Odd</label><input type="number" step="0.01" min="1" id="f-odd" placeholder="Ex.: 1,85"></div>
       <div class="c2"><label>Stake (R$)</label><input type="number" step="0.01" id="f-stake" placeholder="0,00"></div>
+      <div class="c2"><label>Filial</label><select id="f-filial"><option value="">— Sem filial</option></select></div>
       <div class="c2"><label>Situação</label><select id="f-sit"><option value="enc">Encerrada</option><option value="pend">Pendente ⏳</option></select></div>
       <div class="c2"><label>P/L (R$)</label><input type="number" step="0.01" id="f-pl" placeholder="+ green · − red"></div>
       <div class="c2"><label>Placar (M × V)</label>
@@ -784,6 +799,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
     <div><label>Ano</label><select id="e-ano"></select></div>
     <div><label>Origem</label><select id="e-orig"><option value="all">Todas</option><option value="bot">Bot</option><option value="manual">Manuais</option></select></div>
     <div><label>Situação</label><select id="e-sit"><option value="all">Todas</option><option value="pend">Pendentes</option><option value="enc">Encerradas</option></select></div>
+    <div><label>Filial</label><select id="e-fil"></select></div>
     <div style="flex:1;min-width:200px"><label>Buscar</label><input id="e-busca" placeholder="time, competição, mercado…"></div>
     <div style="align-self:end"><button class="btn ghost" id="imp-toggle">📥 Importar planilha</button></div>
   </div>
@@ -822,6 +838,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
     <div><label>Período</label><select id="a-mes"></select></div>
     <div><label>Ano</label><select id="a-ano"></select></div>
     <div><label>Origem</label><select id="a-orig"><option value="all">Todas</option><option value="bot">Bot</option><option value="manual">Manuais</option></select></div>
+    <div><label>Filial</label><select id="a-fil"></select></div>
   </div>
   <div class="grid2">
     <div class="panel"><h2>Times mais lucrativos</h2><div id="a-times-top"></div></div>
@@ -887,6 +904,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
     <div><label>Período</label><select id="d-mes"></select></div>
     <div><label>Ano</label><select id="d-ano"></select></div>
     <div><label>Origem</label><select id="d-orig"><option value="all">Todas</option><option value="bot">Bot</option><option value="manual">Manuais</option></select></div>
+    <div><label>Filial</label><select id="d-fil"></select></div>
   </div>
   <div class="panel">
     <h2>Resumo por país</h2>
@@ -971,7 +989,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 
 <script>
 /* ============ CONFIGURAÇÃO DO SUPABASE ============ */
-const APP_VERSAO = "v24";
+const APP_VERSAO = "v25";
 const SUPABASE_URL = "https://zfsmrhsarjzxnsntfwog.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umDFIXKEgoQHjDu8UY-wDA_Sdno9GtB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1007,7 +1025,7 @@ const tipoAtivo = ()=> banca().tipo || "bolsa";
 let user = null;
 let bancas = [];
 let bancaId = null;
-let db = { bets:[], movs:[], casa:[], ciclos:[], cjogos:[], juros:[] };
+let db = { bets:[], movs:[], casa:[], ciclos:[], cjogos:[], juros:[], filiais:[] };
 let cad = { equipes:[], paises:[], campeonatos:[], mercados:[], estrategias:[], casas:[] };
 let cadKey = "equipes";
 
@@ -1162,6 +1180,14 @@ async function loadBancaData(){
     if(error) throw error;
     db.bets = data||[];
   }catch(e){ sbErr(e,"carregar entradas"); db.bets=[]; }
+  db.filiais=[];
+  if(tipoAtivo()==="bolsa"){
+    try{
+      const { data, error } = await sb.from("filiais").select("*").eq("user_id", user.id).eq("banca_id", bancaId).order("criado_em").limit(200);
+      if(error) throw error;
+      db.filiais = data||[];
+    }catch(e){ console.error("filiais", e); }
+  }
   try{
     const { data, error } = await sb.from("banca_movs").select("*").eq("user_id", user.id).eq("banca_id", bancaId).limit(5000);
     if(error) throw error;
@@ -1567,6 +1593,9 @@ function filteredBets(px){
   const orig = $(px+"-orig") ? $(px+"-orig").value : "all";
   if(orig==="bot") list = list.filter(isBot);
   else if(orig==="manual") list = list.filter(b=>!isBot(b));
+  const fil = $(px+"-fil") ? $(px+"-fil").value : "all";
+  if(fil==="none") list = list.filter(b=>!b.filial_id);
+  else if(fil!=="all") list = list.filter(b=>b.filial_id===fil);
   if(px==="e"){
     const sit = $("e-sit").value;
     if(sit==="pend") list = list.filter(b=>b.pendente);
@@ -1606,7 +1635,7 @@ function renderEntradas(){
           ${b.obs?`<div style="font-size:11.5px;color:var(--dim)">${esc(b.obs)}</div>`:""}</td>
       <td><span class="chip ${isLay?"lay":"back"}">${esc(b.forma)||"—"}</span></td>
       <td>${esc(b.mercado)||"—"}</td>
-      <td><span class="chip ${b.tipo==="Live"?"live":"pre"}">${b.tipo==="Live"?"Live":"Pré"}</span>${isBot(b)?' <span class="chip st-pendente" title="Entrada importada do robô">BOT</span>':""}</td>
+      <td><span class="chip ${b.tipo==="Live"?"live":"pre"}">${b.tipo==="Live"?"Live":"Pré"}</span>${isBot(b)?' <span class="chip st-pendente" title="Entrada importada do robô">BOT</span>':""}${b.filial_id?` <span class="chip back" title="Filial">🏷 ${esc(filialNome(b.filial_id))}</span>`:""}</td>
       <td class="num">${oddFmt(b.odd>0? b.odd : null)}</td>
       <td class="num">${fmt(+b.stake||0)}</td>
       <td class="num ${b.pendente?"":cls(+b.pl)}">${b.pendente? '<span class="chip st-pendente">Pendente ⏳</span>' : (+b.pl>0?"+":"")+fmt(+b.pl||0)}</td>
@@ -1623,6 +1652,7 @@ function clearForm(){
   $("f-data").value = new Date().toISOString().slice(0,10);
   $("f-tipo").value = "Pré Live";
   $("f-sit").value = "enc";
+  $("f-filial").value = "";
   ["f-pl","f-gm","f-gv"].forEach(id=>$(id).disabled=false);
   editId=null;
   $("f-title").textContent="Nova entrada";
@@ -1641,6 +1671,7 @@ window.editBet = id=>{
   editId=id;
   $("f-data").value=b.data;
   $("f-sit").value = b.pendente? "pend":"enc";
+  $("f-filial").value = b.filial_id||"";
   ["f-pl","f-gm","f-gv"].forEach(id=>$(id).disabled = !!b.pendente);
   $("f-comp").value=b.comp||"";
   $("f-pais").value=b.pais||"";
@@ -1678,6 +1709,7 @@ $("f-save").onclick = async ()=>{
   if(!pendente && g("f-pl")===""){ toast("Informe o P/L (valor negativo para red) ou marque como Pendente.", true); return; }
   const row={
     user_id:user.id, banca_id:bancaId, data, pendente,
+    filial_id: $("f-filial").value || null,
     comp:g("f-comp"), pais:g("f-pais"), tipo:g("f-tipo"),
     mand:g("f-mand"), vis:g("f-vis"), forma:g("f-forma"), mercado:g("f-merc"),
     odd:+g("f-odd")||null, stake:+g("f-stake")||0, pl:pendente? 0 : (+g("f-pl")||0),
@@ -1701,7 +1733,7 @@ $("f-save").onclick = async ()=>{
   }
   clearForm(); fillDatalists(); fillMesAnoSelects(); renderAll();
 };
-["e-mes","e-ano","e-orig","e-sit"].forEach(id=> $(id).onchange = renderEntradas);
+["e-mes","e-ano","e-orig","e-sit","e-fil"].forEach(id=> $(id).onchange = renderEntradas);
 $("e-busca").oninput = renderEntradas;
 
 /* oferece cadastrar País / Competição / Equipes digitados que não existem no cadastro */
@@ -1782,7 +1814,7 @@ function renderAnalises(){
     agrupa(list,b=>b.comp).sort(bySum).map(([n,o])=>linha(n,o)).join("")
     || `<tr><td colspan="6" class="empty">Sem dados no período.</td></tr>`;
 }
-["a-mes","a-ano","a-orig"].forEach(id=> $(id).onchange = renderAnalises);
+["a-mes","a-ano","a-orig","a-fil"].forEach(id=> $(id).onchange = renderAnalises);
 
 /* ============ Dashboard ============ */
 function renderDashboard(){
@@ -1831,7 +1863,7 @@ function renderDashboard(){
   $("dash-merc").innerHTML = nested(b=> b.mercado || "Sem mercado");
   $("dash-comp").innerHTML = nested(b=> b.comp || "Sem competição");
 }
-["d-mes","d-ano","d-orig"].forEach(id=> $(id).onchange = renderDashboard);
+["d-mes","d-ano","d-orig","d-fil"].forEach(id=> $(id).onchange = renderDashboard);
 
 /* ============ Config ============ */
 function renderConfig(){
@@ -3132,6 +3164,96 @@ function fillEstrCiclos(){
   $("dl-estr-ciclos").innerHTML = [...set2].map(v=>`<option value="${esc(v)}">`).join("");
 }
 
+
+/* ============ Filiais (Bolsa) ============ */
+let filEditId = null;
+const filialNome = id => (db.filiais.find(f=>f.id===id)||{}).nome || "";
+function fillFiliaisSelects(){
+  const ops = db.filiais.map(f=>`<option value="${f.id}">${esc(f.nome)}</option>`).join("");
+  if($("f-filial")){
+    const cur = $("f-filial").value;
+    $("f-filial").innerHTML = `<option value="">— Sem filial</option>` + ops;
+    if([...$("f-filial").options].some(o=>o.value===cur)) $("f-filial").value = cur;
+  }
+  ["e-fil","d-fil","a-fil"].forEach(id=>{
+    const el=$(id); if(!el) return;
+    const cur = el.value;
+    el.innerHTML = `<option value="all">Todas</option>` + ops + `<option value="none">Sem filial</option>`;
+    if([...el.options].some(o=>o.value===cur)) el.value = cur;
+  });
+}
+function filClear(){
+  filEditId=null;
+  $("fil-nome").value=""; $("fil-alocado").value="";
+  $("fil-f-label").textContent="Nova filial";
+  $("fil-save").textContent="Salvar filial";
+  $("fil-cancel").style.display="none";
+}
+$("fil-cancel").onclick = filClear;
+$("fil-save").onclick = async ()=>{
+  const nome = $("fil-nome").value.trim();
+  if(!nome){ toast("Dê um nome à filial.", true); return; }
+  const row = { user_id:user.id, banca_id:bancaId, nome, alocado:+$("fil-alocado").value||0 };
+  if(filEditId){
+    const { data, error } = await sb.from("filiais").update({nome:row.nome, alocado:row.alocado}).eq("id", filEditId).eq("user_id", user.id).select().single();
+    if(error) return sbErr(error,"salvar a filial");
+    db.filiais = db.filiais.map(f=> f.id===filEditId? data : f);
+    toast("Filial atualizada.");
+  } else {
+    const { data, error } = await sb.from("filiais").insert(row).select().single();
+    if(error) return sbErr(error, error.code==="23505"? "criar a filial (já existe uma com esse nome)":"criar a filial");
+    db.filiais.push(data);
+    toast(`Filial "${nome}" criada.`);
+  }
+  filClear(); fillFiliaisSelects(); renderAll();
+};
+window.editFilial = id=>{
+  const f = db.filiais.find(x=>x.id===id); if(!f) return;
+  filEditId=id;
+  $("fil-nome").value=f.nome; $("fil-alocado").value=f.alocado;
+  $("fil-f-label").textContent="Editando filial";
+  $("fil-save").textContent="Salvar alterações";
+  $("fil-cancel").style.display="inline-block";
+};
+window.delFilial = async id=>{
+  const f = db.filiais.find(x=>x.id===id); if(!f) return;
+  const n = db.bets.filter(b=>b.filial_id===id).length;
+  if(!confirm(`Excluir a filial "${f.nome}"?${n?` As ${n} entradas dela ficarão "sem filial" (não são apagadas).`:""}`)) return;
+  const { error } = await sb.from("filiais").delete().eq("id", id).eq("user_id", user.id);
+  if(error) return sbErr(error,"excluir a filial");
+  db.filiais = db.filiais.filter(x=>x.id!==id);
+  db.bets = db.bets.map(b=> b.filial_id===id? {...b, filial_id:null} : b);
+  toast("Filial excluída.");
+  fillFiliaisSelects(); renderAll();
+};
+function renderFiliais(){
+  if(!$("fil-tbody") || tipoAtivo()!=="bolsa") return;
+  const enc = db.bets.filter(b=>!b.pendente);
+  const linha = (nome, alocado, arr, id)=>{
+    const g=arr.filter(b=>+b.pl>0).length, r=arr.filter(b=>+b.pl<0).length;
+    const pl=arr.reduce((sm,b)=>sm+(+b.pl||0),0);
+    const atual = alocado!=null? alocado+pl : null;
+    const roi = alocado>0? pl/alocado : null;
+    return `<tr><td>${id?`🏷 <b>${esc(nome)}</b>`:esc(nome)}</td>
+      <td class="num">${alocado!=null? fmt(alocado):"—"}</td>
+      <td class="num">${arr.length}</td>
+      <td class="num pos">${g}</td><td class="num neg">${r}</td>
+      <td class="num ${cls(pl)}">${(pl>0?"+":"")+fmt(pl)}</td>
+      <td class="num mono">${atual!=null? fmt(atual):"—"}</td>
+      <td class="num ${roi!=null?cls(roi):""}">${roi!=null? (roi>0?"+":"")+pct(roi):"—"}</td>
+      <td>${id?`<div class="rowactions">
+        <button class="iconbtn" onclick="editFilial('${id}')">Editar</button>
+        <button class="iconbtn" onclick="delFilial('${id}')">Excluir</button></div>`:""}</td></tr>`;
+  };
+  const linhas = db.filiais.map(f=> linha(f.nome, +f.alocado||0, enc.filter(b=>b.filial_id===f.id), f.id));
+  const semFilial = enc.filter(b=>!b.filial_id);
+  if(semFilial.length || !db.filiais.length) linhas.push(linha("Sem filial", null, semFilial, null));
+  $("fil-tbody").innerHTML = linhas.join("") || `<tr><td colspan="9" class="empty">Crie a primeira filial abaixo.</td></tr>`;
+  const aloc = db.filiais.reduce((sm,f)=>sm+(+f.alocado||0),0);
+  const ini = +banca().inicial||0;
+  $("fil-aloc-hint").innerHTML = db.filiais.length? `Alocado: <b>${fmt(aloc)}</b> de ${fmt(ini)} da banca inicial${aloc>ini?` <span class="neg">(acima da banca!)</span>`:` · livre: ${fmt(Math.max(0,ini-aloc))}`}` : "";
+}
+
 /* ============ Juros Compostos ============ */
 let jEditId = null;
 const jSorted = ()=> [...db.juros].sort((a,b)=> a.data===b.data? ((a.criado_em||"")<(b.criado_em||"")?-1:1) : (a.data<b.data?-1:1));
@@ -3440,7 +3562,7 @@ function renderJurosAnalises(){
 function renderJuros(){ if(tipoAtivo()!=="juros") return; renderJurosPainel(); renderJurosEntradas(); renderJurosProj(); renderJurosAnalises(); }
 
 /* ============ Boot ============ */
-function renderAll(){ renderPainel(); renderDashboard(); renderEntradas(); renderAnalises(); renderCadastros(); renderConfig(); renderBancaTab(); renderCasa(); renderCiclos(); renderJuros(); }
+function renderAll(){ renderPainel(); renderDashboard(); renderEntradas(); renderAnalises(); renderCadastros(); renderConfig(); renderBancaTab(); renderCasa(); renderCiclos(); renderJuros(); renderFiliais(); fillFiliaisSelects(); }
 $("s-versao").textContent = APP_VERSAO;
 document.querySelector(".login-card p.sub").insertAdjacentHTML("beforeend", ` <span class="mono" style="color:var(--dim);font-size:11px">· ${APP_VERSAO}</span>`);
 clearForm();
