@@ -252,8 +252,9 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
         </select></div>
       <div class="field" style="margin-bottom:13px"><label>Banca inicial (R$)</label><input type="number" step="0.01" id="nb-inicial" value="300"></div>
       <div class="field" style="margin-bottom:13px"><label>Gestão · % da banca por stake</label><input type="number" step="0.1" id="nb-gestao" value="2"></div>
+      <div class="field" style="margin-bottom:13px"><label>Vinculada à banca (opcional)</label><select id="nb-mae"><option value="">— Nenhuma</option></select></div>
       <button class="btn" id="nb-criar">Criar banca</button>
-      <p class="hint">Cada banca funciona como uma planilha separada: tem suas próprias entradas, levantamentos, análises e gestão.</p>
+      <p class="hint">Cada banca funciona como uma planilha separada. <b>Banca vinculada:</b> use quando o dinheiro sai de outra banca (ex.: um Método de Ciclos com R$ 200 da banca Gau) — a banca-mãe passa a mostrar essa banca no quadro de Gestão por filiais, com alocado, P/L e ROI.</p>
     </div>
   </div>
 </section>
@@ -937,6 +938,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
         </select></div>
       <div><label>Banca inicial (R$)</label><input type="number" step="0.01" id="c-inicial"></div>
       <div><label>Gestão · % da banca por stake</label><input type="number" step="0.1" id="c-gestao"></div>
+      <div><label>Vinculada à banca</label><select id="c-mae"><option value="">— Nenhuma</option></select></div>
       <div style="align-self:end"><button class="btn" id="c-save">Salvar</button></div>
     </div>
     <p class="hint">A stake sugerida no Painel é calculada como <b>% de gestão × banca atual</b>. Ex.: gestão 2% com banca de R$ 500 → stake de R$ 10.</p>
@@ -989,7 +991,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 
 <script>
 /* ============ CONFIGURAÇÃO DO SUPABASE ============ */
-const APP_VERSAO = "v26";
+const APP_VERSAO = "v27";
 const SUPABASE_URL = "https://zfsmrhsarjzxnsntfwog.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umDFIXKEgoQHjDu8UY-wDA_Sdno9GtB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1277,12 +1279,12 @@ $("nb-criar").onclick = async ()=>{
   if(!nome){ toast("Dê um nome à banca.", true); return; }
   if(bancas.some(b=>b.nome.toLowerCase()===nome.toLowerCase())){ toast("Já existe uma banca com este nome.", true); return; }
   $("nb-criar").disabled=true;
-  const row = { user_id:user.id, nome, tipo:$("nb-tipo").value, inicial:+$("nb-inicial").value||0, gestao:+$("nb-gestao").value||0 };
+  const row = { user_id:user.id, nome, tipo:$("nb-tipo").value, inicial:+$("nb-inicial").value||0, gestao:+$("nb-gestao").value||0, banca_mae:$("nb-mae").value||null };
   const { data, error } = await sb.from("bancas").insert(row).select().single();
   $("nb-criar").disabled=false;
   if(error) return sbErr(error,"criar a banca");
   bancas.push(data);
-  $("nb-nome").value=""; $("nb-tipo").value="bolsa"; $("nb-inicial").value="300"; $("nb-gestao").value="2";
+  $("nb-nome").value=""; $("nb-tipo").value="bolsa"; $("nb-inicial").value="300"; $("nb-gestao").value="2"; $("nb-mae").value="";
   toast(`Banca "${nome}" criada e selecionada.`);
   await selecionarBanca(data.id, false);
   irParaAba("painel");
@@ -1866,8 +1868,17 @@ function renderDashboard(){
 ["d-mes","d-ano","d-orig","d-fil"].forEach(id=> $(id).onchange = renderDashboard);
 
 /* ============ Config ============ */
+function fillMaeSelects(){
+  const ops = id => bancas.filter(b=>b.id!==id && b.banca_mae!==bancaId).map(b=>`<option value="${b.id}">${esc(b.nome)}</option>`).join("");
+  if($("nb-mae")) $("nb-mae").innerHTML = `<option value="">— Nenhuma</option>` + bancas.map(b=>`<option value="${b.id}">${esc(b.nome)}</option>`).join("");
+  if($("c-mae")){
+    $("c-mae").innerHTML = `<option value="">— Nenhuma</option>` + ops(bancaId);
+    $("c-mae").value = banca()?.banca_mae || "";
+  }
+}
 function renderConfig(){
   const b = banca();
+  fillMaeSelects();
   $("c-nome").value = b.nome;
   $("c-tipo").value = b.tipo || "bolsa";
   $("c-inicial").value = b.inicial;
@@ -1887,7 +1898,8 @@ $("c-save").onclick = async ()=>{
   const tipo = $("c-tipo").value;
   const inicial = +$("c-inicial").value || 0;
   const gestao = +$("c-gestao").value || 0;
-  const { data, error } = await sb.from("bancas").update({ nome, tipo, inicial, gestao }).eq("id", bancaId).eq("user_id", user.id).select().single();
+  const banca_mae = $("c-mae").value || null;
+  const { data, error } = await sb.from("bancas").update({ nome, tipo, inicial, gestao, banca_mae }).eq("id", bancaId).eq("user_id", user.id).select().single();
   if(error) return sbErr(error,"salvar os parâmetros");
   bancas = bancas.map(b=> b.id===bancaId? data : b);
   renderBancaSel();
@@ -3246,12 +3258,34 @@ function renderFiliais(){
         <button class="iconbtn" onclick="delFilial('${id}')">Excluir</button></div>`:""}</td></tr>`;
   };
   const linhas = db.filiais.map(f=> linha(f.nome, +f.alocado||0, enc.filter(b=>b.filial_id===f.id), f.id));
+  /* bancas vinculadas a esta banca (ex.: um Método de Ciclos rodando com dinheiro daqui) */
+  const TIPOS_V = { bolsa:"Bolsa", ciclos:"Método de Ciclos", casa:"Casa de Aposta", juros:"Juros Compostos" };
+  const vinculadas = bancas.filter(b=>b.banca_mae===bancaId);
+  if(vinculadas.length && vinculadas.some(v=>!resumo[v.id]) && !renderFiliais._req){
+    renderFiliais._req = true;
+    refreshResumo().then(()=>{ renderFiliais._req=false; renderFiliais(); }).catch(()=>{ renderFiliais._req=false; });
+  }
+  vinculadas.forEach(v=>{
+    const r = resumo[v.id]||{pl:0,mov:0,n:0};
+    const alocado = +v.inicial||0;
+    const pl = r.pl + r.mov;
+    const atual = alocado + pl;
+    const roi = alocado>0? pl/alocado : null;
+    linhas.push(`<tr><td>📎 <b>${esc(v.nome)}</b> <span style="font-size:11px;color:var(--dim)">banca vinculada · ${TIPOS_V[v.tipo]||v.tipo}</span></td>
+      <td class="num">${fmt(alocado)}</td>
+      <td class="num">${r.n}</td>
+      <td class="num">—</td><td class="num">—</td>
+      <td class="num ${cls(pl)}">${(pl>0?"+":"")+fmt(pl)}</td>
+      <td class="num mono">${fmt(atual)}</td>
+      <td class="num ${roi!=null?cls(roi):""}">${roi!=null? (roi>0?"+":"")+pct(roi):"—"}</td>
+      <td><div class="rowactions"><button class="iconbtn" onclick="selecionarBanca('${v.id}')">Abrir</button></div></td></tr>`);
+  });
   const semFilial = enc.filter(b=>!b.filial_id);
-  if(semFilial.length || !db.filiais.length) linhas.push(linha("Sem filial", null, semFilial, null));
+  if(semFilial.length || (!db.filiais.length && !vinculadas.length)) linhas.push(linha("Sem filial", null, semFilial, null));
   $("fil-tbody").innerHTML = linhas.join("") || `<tr><td colspan="9" class="empty">Crie a primeira filial abaixo.</td></tr>`;
-  const aloc = db.filiais.reduce((sm,f)=>sm+(+f.alocado||0),0);
+  const aloc = db.filiais.reduce((sm,f)=>sm+(+f.alocado||0),0) + vinculadas.reduce((sm,v)=>sm+(+v.inicial||0),0);
   const ini = +banca().inicial||0;
-  $("fil-aloc-hint").innerHTML = db.filiais.length? `Alocado: <b>${fmt(aloc)}</b> de ${fmt(ini)} da banca inicial${aloc>ini?` <span class="neg">(acima da banca!)</span>`:` · livre: ${fmt(Math.max(0,ini-aloc))}`}` : "";
+  $("fil-aloc-hint").innerHTML = (db.filiais.length||vinculadas.length)? `Alocado (filiais + vinculadas): <b>${fmt(aloc)}</b> de ${fmt(ini)} da banca inicial${aloc>ini?` <span class="neg">(acima da banca!)</span>`:` · livre: ${fmt(Math.max(0,ini-aloc))}`}` : "";
 }
 
 /* ============ Juros Compostos ============ */
