@@ -427,7 +427,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
       <div class="c2"><label>Odd</label><input type="number" step="0.01" id="j-odd" placeholder="Ex.: 1.50"></div>
       <div class="c2"><label id="j-stake-label">Stake (R$)</label><input type="number" step="0.01" id="j-stake"></div>
       <div class="c2"><label>Comissão da casa (%)</label><input type="number" step="0.1" id="j-comissao"></div>
-      <div class="c2"><label>Resultado</label><select id="j-res"><option value="green">Green ✅</option><option value="red">Red ❌</option></select></div>
+      <div class="c2"><label>Resultado</label><select id="j-res"><option value="green">Green ✅</option><option value="red">Red ❌</option><option value="pendente">Pendente ⏳</option></select></div>
       <div class="c4" style="align-self:end"><div id="j-preview" class="hint" style="margin:0"></div></div>
       <div class="c6" style="display:flex;gap:10px">
         <button class="btn" id="j-save">Registrar entrada</button>
@@ -989,7 +989,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 
 <script>
 /* ============ CONFIGURAÇÃO DO SUPABASE ============ */
-const APP_VERSAO = "v25";
+const APP_VERSAO = "v26";
 const SUPABASE_URL = "https://zfsmrhsarjzxnsntfwog.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umDFIXKEgoQHjDu8UY-wDA_Sdno9GtB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3256,6 +3256,7 @@ function renderFiliais(){
 
 /* ============ Juros Compostos ============ */
 let jEditId = null;
+const jChip = r => r==="green"? '<span class="chip st-green">Green</span>' : r==="red"? '<span class="chip st-red">Red</span>' : r==="pendente"? '<span class="chip st-pendente">Pendente ⏳</span>' : `<span class="chip st-pendente">${esc(r||"—")}</span>`;
 const jSorted = ()=> [...db.juros].sort((a,b)=> a.data===b.data? ((a.criado_em||"")<(b.criado_em||"")?-1:1) : (a.data<b.data?-1:1));
 const jBancaAtual = ()=> (+banca().inicial||0) + db.juros.reduce((sm,j)=>sm+(+j.pl||0),0) + movsUntil(()=>true);
 const jPct = ()=> { const g=+banca().gestao||0; return g>0? g : 100; };
@@ -3301,15 +3302,15 @@ function renderJurosEntradas(){
   let bk = (+banca().inicial||0) + movsUntil(()=>true);
   $("j-tbody").innerHTML = list.length? list.map((j,i)=>{
     bk += +j.pl||0;
-    return `<tr class="${j.resultado==="green"?"g":"r"}">
+    return `<tr class="${j.resultado==="green"?"g":(j.resultado==="red"?"r":"")}">
       <td class="mono">${i+1}</td>
       <td class="mono">${dBR(j.data)}</td>
       <td>${esc(j.jogo)||"—"}${j.pais?`<div style="font-size:11px;color:var(--dim)">${esc(j.pais)}</div>`:""}</td>
       <td><span class="chip ${(j.aposta||"back")==="lay"?"lay":"back"}">${(j.aposta||"back")==="lay"?"Lay":"Back"}</span></td>
       <td class="num">${oddFmt(+j.odd>0? +j.odd:null)}</td>
       <td class="num">${fmt(+j.stake||0)}</td>
-      <td>${j.resultado==="green"? '<span class="chip st-green">Green</span>':'<span class="chip st-red">Red</span>'}</td>
-      <td class="num ${cls(+j.pl)}">${(+j.pl>0?"+":"")+fmt(+j.pl)}</td>
+      <td>${jChip(j.resultado)}</td>
+      <td class="num ${cls(+j.pl)}">${j.resultado==="pendente"? "—" : (+j.pl>0?"+":"")+fmt(+j.pl)}</td>
       <td class="num mono">${fmt(bk)}</td>
       <td><div class="rowactions">
         <button class="iconbtn" onclick="editJuros('${j.id}')">Editar</button>
@@ -3364,7 +3365,7 @@ $("j-save").onclick = async ()=>{
     data:$("j-data").value, jogo:$("j-jogo").value.trim(),
     pais:$("j-pais").value.trim(),
     aposta, comissao, odd, stake, resultado:res,
-    pl: jCalcPL(aposta, res, stake, odd, comissao)
+    pl: res==="pendente"? 0 : jCalcPL(aposta, res, stake, odd, comissao)
   };
   $("j-save").disabled=true;
   if(jEditId){
@@ -3487,8 +3488,8 @@ function renderJurosPainel(){
   $("jp-last").innerHTML = last.length? last.map(j=>
     `<tr><td class="mono">${dBR(j.data)}</td><td>${esc(j.jogo)||"—"}</td>
       <td class="num">${oddFmt(+j.odd>0?+j.odd:null)}</td><td class="num">${fmt(+j.stake||0)}</td>
-      <td>${j.resultado==="green"? '<span class="chip st-green">Green</span>':'<span class="chip st-red">Red</span>'}</td>
-      <td class="num ${cls(+j.pl)}">${(+j.pl>0?"+":"")+fmt(+j.pl)}</td></tr>`).join("")
+      <td>${jChip(j.resultado)}</td>
+      <td class="num ${cls(+j.pl)}">${j.resultado==="pendente"? "—" : (+j.pl>0?"+":"")+fmt(+j.pl)}</td></tr>`).join("")
     : `<tr><td colspan="6" class="empty">Sem entradas ainda.</td></tr>`;
 }
 /* ---- Análises ---- */
