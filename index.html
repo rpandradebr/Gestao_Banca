@@ -778,7 +778,11 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
       <div class="c2"><label>Stake (R$)</label><input type="number" step="0.01" id="f-stake" placeholder="0,00"></div>
       <div class="c2"><label>Filial</label><select id="f-filial"><option value="">— Sem filial</option></select></div>
       <div class="c2"><label>Situação</label><select id="f-sit"><option value="enc">Encerrada</option><option value="pend">Pendente ⏳</option></select></div>
-      <div class="c2"><label>P/L (R$)</label><input type="number" step="0.01" id="f-pl" placeholder="+ green · − red"></div>
+      <div class="c2"><label>P/L (R$)</label>
+        <div style="display:flex;gap:6px">
+          <input type="number" step="0.01" id="f-pl" placeholder="+ green · − red" style="flex:1">
+          <button class="iconbtn" id="f-pl-com" type="button" title="Descontar a comissão da bolsa do valor digitado (só quando positivo)">− com.</button>
+        </div></div>
       <div class="c2"><label>Placar (M × V)</label>
         <div style="display:flex;gap:6px;align-items:center">
           <input type="number" min="0" id="f-gm" placeholder="0" style="text-align:center">
@@ -939,6 +943,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
       <div><label>Banca inicial (R$)</label><input type="number" step="0.01" id="c-inicial"></div>
       <div><label>Gestão · % da banca por stake</label><input type="number" step="0.1" id="c-gestao"></div>
       <div><label>Vinculada à banca</label><select id="c-mae"><option value="">— Nenhuma</option></select></div>
+      <div><label>Comissão da bolsa (%)</label><input type="number" step="0.1" id="c-bcom" placeholder="4,5"></div>
       <div style="align-self:end"><button class="btn" id="c-save">Salvar</button></div>
     </div>
     <p class="hint">A stake sugerida no Painel é calculada como <b>% de gestão × banca atual</b>. Ex.: gestão 2% com banca de R$ 500 → stake de R$ 10.</p>
@@ -991,7 +996,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 
 <script>
 /* ============ CONFIGURAÇÃO DO SUPABASE ============ */
-const APP_VERSAO = "v27";
+const APP_VERSAO = "v28";
 const SUPABASE_URL = "https://zfsmrhsarjzxnsntfwog.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umDFIXKEgoQHjDu8UY-wDA_Sdno9GtB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1883,6 +1888,9 @@ function renderConfig(){
   $("c-tipo").value = b.tipo || "bolsa";
   $("c-inicial").value = b.inicial;
   $("c-gestao").value = b.gestao;
+  $("c-bcom").value = b.bolsa_comissao ?? 4.5;
+  const bc = +(b.bolsa_comissao ?? 4.5);
+  $("f-pl-com").textContent = `− ${String(bc).replace(".",",")}%`;
   $("m-banca").textContent = b.nome;
   const tb=$("m-tbody");
   const movs=[...db.movs].sort((a,c)=>a.data<c.data?1:-1);
@@ -1899,7 +1907,8 @@ $("c-save").onclick = async ()=>{
   const inicial = +$("c-inicial").value || 0;
   const gestao = +$("c-gestao").value || 0;
   const banca_mae = $("c-mae").value || null;
-  const { data, error } = await sb.from("bancas").update({ nome, tipo, inicial, gestao, banca_mae }).eq("id", bancaId).eq("user_id", user.id).select().single();
+  const bolsa_comissao = +$("c-bcom").value || 0;
+  const { data, error } = await sb.from("bancas").update({ nome, tipo, inicial, gestao, banca_mae, bolsa_comissao }).eq("id", bancaId).eq("user_id", user.id).select().single();
   if(error) return sbErr(error,"salvar os parâmetros");
   bancas = bancas.map(b=> b.id===bancaId? data : b);
   renderBancaSel();
@@ -3201,6 +3210,13 @@ function filClear(){
   $("fil-save").textContent="Salvar filial";
   $("fil-cancel").style.display="none";
 }
+$("f-pl-com").onclick = ()=>{
+  const v = +$("f-pl").value;
+  if(!v || v<=0){ toast("Digite primeiro o ganho (positivo) no P/L — a comissão só desconta dos greens.", true); return; }
+  const c = +(banca().bolsa_comissao ?? 4.5);
+  $("f-pl").value = (v*(1-c/100)).toFixed(2);
+  toast(`Comissão de ${String(c).replace(".",",")}% descontada: ${fmt(v)} → ${fmt(+$("f-pl").value)}`);
+};
 $("fil-cancel").onclick = filClear;
 $("fil-save").onclick = async ()=>{
   const nome = $("fil-nome").value.trim();
