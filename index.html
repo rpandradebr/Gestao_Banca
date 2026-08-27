@@ -866,7 +866,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
     <table>
       <thead><tr>
         <th>Data</th><th>Competição</th><th>Jogo</th><th>Forma de trabalho</th><th>Mercado</th><th>Tipo</th>
-        <th class="num">Odd</th><th class="num">Stake</th><th class="num">P/L</th><th class="num">ROI</th><th></th>
+        <th class="num">Odd</th><th class="num">Stake</th><th class="num" title="Responsabilidade: o que você arrisca no lay (stake × (odd − 1)). No back é a própria stake.">Resp.</th><th class="num">P/L</th><th class="num">ROI</th><th></th>
       </tr></thead>
       <tbody id="e-tbody"></tbody>
     </table>
@@ -1031,7 +1031,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 
 <script>
 /* ============ CONFIGURAÇÃO DO SUPABASE ============ */
-const APP_VERSAO = "v31";
+const APP_VERSAO = "v32";
 const SUPABASE_URL = "https://zfsmrhsarjzxnsntfwog.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umDFIXKEgoQHjDu8UY-wDA_Sdno9GtB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1084,6 +1084,8 @@ const plOf = list => list.reduce((s,b)=>s+(+b.pl||0),0);
 const stakeOf = list => list.reduce((s,b)=>s+(+b.stake||0),0);
 const ehLayB = b => /\blay\b/i.test(String(b.forma||""));
 const respDe = b => ehLayB(b) && +b.odd>1 ? +( (+b.stake||0) * (+b.odd-1) ).toFixed(2) : null;
+const riscoDe = b => respDe(b) ?? (+b.stake||0);
+const riscoOf = list => list.reduce((s,b)=>s+riscoDe(b),0);
 const oddFmt = v => v==null? "—" : (+v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
 function oddMedia(list){
   const odds = list.map(b=>+b.odd).filter(v=>v>0);
@@ -1664,14 +1666,15 @@ function renderEntradas(){
      <div><span>Reds </span><b class="neg">${r}</b></div>
      ${nPend?`<div><span>Pendentes </span><b style="color:var(--gold)">${nPend}</b></div>`:""}
      <div><span>Stake total </span><b>${fmt(st)}</b></div>
+     <div><span>Em risco (resp.) </span><b>${fmt(riscoOf(list))}</b></div>
      <div><span>P/L </span><b class="${cls(pl)}">${(pl>0?"+":"")+fmt(pl)}</b></div>
-     <div><span>ROI/stake </span><b class="${cls(pl)}">${st? (pl>0?"+":"")+pct(pl/st) : "—"}</b></div>
+     <div><span>ROI/risco </span><b class="${cls(pl)}">${riscoOf(list)? (pl>0?"+":"")+pct(pl/riscoOf(list)) : "—"}</b></div>
      <div><span>Odd média </span><b>${oddFmt(oddMedia(list))}</b></div>`;
 
   const tb=$("e-tbody");
   tb.innerHTML = list.length? [...list].reverse().map(b=>{
     const isLay = /lay/i.test(b.forma||"");
-    const roi = +b.stake? (+b.pl)/(+b.stake) : null;
+    const roi = riscoDe(b)? (+b.pl)/riscoDe(b) : null;
     return `<tr class="${b.pendente?"":(+b.pl>0?"g":(+b.pl<0?"r":""))}">
       <td class="mono">${dBR(b.data)}</td>
       <td>${esc(b.comp)||"—"}${b.pais?`<div style="font-size:11px;color:var(--dim)">${esc(b.pais)}</div>`:""}</td>
@@ -1681,7 +1684,8 @@ function renderEntradas(){
       <td>${esc(b.mercado)||"—"}</td>
       <td><span class="chip ${b.tipo==="Live"?"live":"pre"}">${b.tipo==="Live"?"Live":"Pré"}</span>${isBot(b)?' <span class="chip st-pendente" title="Entrada importada do robô">BOT</span>':""}${b.filial_id?` <span class="chip back" title="Filial">🏷 ${esc(filialNome(b.filial_id))}</span>`:""}</td>
       <td class="num">${oddFmt(b.odd>0? b.odd : null)}</td>
-      <td class="num">${fmt(+b.stake||0)}${respDe(b)!=null? `<div style="font-size:10.5px;color:var(--dim)" title="Responsabilidade: o que você arrisca no lay (stake × (odd − 1))">resp. ${fmt(respDe(b))}</div>`:""}</td>
+      <td class="num">${fmt(+b.stake||0)}</td>
+      <td class="num">${respDe(b)!=null? fmt(respDe(b)) : `<span style="color:var(--dim)">—</span>`}</td>
       <td class="num ${b.pendente?"":cls(+b.pl)}">${b.pendente? '<span class="chip st-pendente">Pendente ⏳</span>' : (+b.pl>0?"+":"")+fmt(+b.pl||0)}</td>
       <td class="num ${!b.pendente&&roi!=null?cls(roi):""}">${!b.pendente&&roi!=null? (roi>0?"+":"")+pct(roi):"—"}</td>
       <td><div class="rowactions">
@@ -1689,7 +1693,7 @@ function renderEntradas(){
         <button class="iconbtn" onclick="editBet('${b.id}')">Editar</button>
         <button class="iconbtn" onclick="delBet('${b.id}')">Excluir</button></div></td>
     </tr>`;}).join("")
-  : `<tr><td colspan="11" class="empty">Nenhuma entrada neste período.</td></tr>`;
+  : `<tr><td colspan="12" class="empty">Nenhuma entrada neste período.</td></tr>`;
 }
 function clearForm(){
   ["f-comp","f-pais","f-mand","f-vis","f-forma","f-merc","f-odd","f-stake","f-pl","f-gm","f-gv","f-obs"].forEach(id=>$(id).value="");
