@@ -239,6 +239,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
   </div>
   <nav>
     <button data-tab="banca">Banca</button>
+    <button data-tab="geral">Relatório Geral</button>
     <button data-tab="painel" class="on">Painel</button>
     <button data-tab="dashboard">Dashboard</button>
     <button data-tab="entradas">Entradas</button>
@@ -274,6 +275,37 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
       <button class="btn" id="nb-criar">Criar banca</button>
       <p class="hint">Cada banca funciona como uma planilha separada. <b>Banca vinculada:</b> use quando o dinheiro sai de outra banca (ex.: um Método de Ciclos com R$ 200 da banca Gau) — a banca-mãe passa a mostrar essa banca no quadro de Gestão por filiais, com alocado, P/L e ROI.</p>
     </div>
+  </div>
+</section>
+
+<section id="tab-geral" class="tab">
+  <div class="panel">
+    <h2>Relatório Geral — todas as bancas</h2>
+    <p class="hint" style="margin-bottom:14px">Soma dos resultados de <b>todas as suas bancas</b> (Bolsa, Casa de Aposta, Ciclos e Juros), sem contar apostas pendentes. Aportes e levantamentos não entram — aqui é só resultado de aposta.</p>
+    <div class="cards">
+      <div class="card"><div class="k">Hoje</div><div class="v" id="g-hoje">R$ 0,00</div><div class="s" id="g-hoje-n">0 operações</div></div>
+      <div class="card"><div class="k">Este mês</div><div class="v" id="g-mes">R$ 0,00</div><div class="s" id="g-mes-n">0 operações</div></div>
+      <div class="card"><div class="k">Total geral</div><div class="v" id="g-total">R$ 0,00</div><div class="s" id="g-total-n">0 operações</div></div>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Calendário geral do mês</h2>
+    <div id="cal-geral"></div>
+  </div>
+  <div class="panel">
+    <h2>Por banca no mês</h2>
+    <table><thead><tr><th>Banca</th><th>Tipo</th><th class="num">Operações</th><th class="num">P/L do mês</th></tr></thead>
+    <tbody id="g-bancas"></tbody></table>
+  </div>
+  <div class="panel">
+    <h2>Por dia (mês selecionado no calendário)</h2>
+    <table><thead><tr><th>Dia</th><th class="num">Operações</th><th class="num">P/L do dia</th><th class="num">Acumulado no mês</th></tr></thead>
+    <tbody id="g-dias"></tbody></table>
+  </div>
+  <div class="panel">
+    <h2>Por mês</h2>
+    <table><thead><tr><th>Mês</th><th class="num">Operações</th><th class="num">P/L</th><th class="num">Acumulado</th></tr></thead>
+    <tbody id="g-meses"></tbody></table>
   </div>
 </section>
 
@@ -810,7 +842,8 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
       <div class="c2"><label>Mercado</label><input list="dl-merc" id="f-merc" placeholder="Ex.: Match Odds"></div>
       <div class="c2"><label>Tipo</label><select id="f-tipo"><option>Pré Live</option><option>Live</option></select></div>
       <div class="c2"><label>Odd</label><input type="number" step="0.01" min="1" id="f-odd" placeholder="Ex.: 1,85"></div>
-      <div class="c2"><label>Stake (R$)</label><input type="number" step="0.01" id="f-stake" placeholder="0,00"><div id="f-resp-hint" class="hint" style="margin:4px 0 0;font-size:11px"></div></div>
+      <div class="c2"><label>Stake (R$)</label><input type="number" step="0.01" id="f-stake" placeholder="0,00"></div>
+      <div class="c2"><label>Responsabilidade (R$) <span style="color:var(--dim);font-weight:400">· lay</span></label><input type="number" step="0.01" id="f-resp" placeholder="stake × (odd − 1)"><div id="f-resp-hint" class="hint" style="margin:4px 0 0;font-size:11px"></div></div>
       <div class="c2"><label>Filial</label><select id="f-filial"><option value="">— Sem filial</option></select></div>
       <div class="c2"><label>Situação</label><select id="f-sit"><option value="enc">Encerrada</option><option value="pend">Pendente ⏳</option></select></div>
       <div class="c2"><label>P/L (R$)</label>
@@ -1031,7 +1064,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 
 <script>
 /* ============ CONFIGURAÇÃO DO SUPABASE ============ */
-const APP_VERSAO = "v32";
+const APP_VERSAO = "v33";
 const SUPABASE_URL = "https://zfsmrhsarjzxnsntfwog.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umDFIXKEgoQHjDu8UY-wDA_Sdno9GtB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1083,7 +1116,7 @@ const sortedBets = () => [...db.bets].sort((a,b)=> a.data<b.data?-1 : a.data>b.d
 const plOf = list => list.reduce((s,b)=>s+(+b.pl||0),0);
 const stakeOf = list => list.reduce((s,b)=>s+(+b.stake||0),0);
 const ehLayB = b => /\blay\b/i.test(String(b.forma||""));
-const respDe = b => ehLayB(b) && +b.odd>1 ? +( (+b.stake||0) * (+b.odd-1) ).toFixed(2) : null;
+const respDe = b => (+b.resp>0) ? +(+b.resp).toFixed(2) : (ehLayB(b) && +b.odd>1 ? +( (+b.stake||0) * (+b.odd-1) ).toFixed(2) : null);
 const riscoDe = b => respDe(b) ?? (+b.stake||0);
 const riscoOf = list => list.reduce((s,b)=>s+riscoDe(b),0);
 const oddFmt = v => v==null? "—" : (+v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -1470,6 +1503,7 @@ document.querySelectorAll("nav button").forEach(btn=>{
   btn.onclick = ()=>{
     irParaAba(btn.dataset.tab);
     if(btn.dataset.tab==="banca"){ renderBancaTab(); refreshResumo(); }
+    else if(btn.dataset.tab==="geral"){ loadGeral().then(renderGeral).catch(e=>console.error(e)); }
     else renderAll();
   };
 });
@@ -1696,7 +1730,8 @@ function renderEntradas(){
   : `<tr><td colspan="12" class="empty">Nenhuma entrada neste período.</td></tr>`;
 }
 function clearForm(){
-  ["f-comp","f-pais","f-mand","f-vis","f-forma","f-merc","f-odd","f-stake","f-pl","f-gm","f-gv","f-obs"].forEach(id=>$(id).value="");
+  ["f-comp","f-pais","f-mand","f-vis","f-forma","f-merc","f-odd","f-stake","f-resp","f-pl","f-gm","f-gv","f-obs"].forEach(id=>$(id).value="");
+  $("f-resp-hint").innerHTML="";
   $("f-data").value = new Date().toISOString().slice(0,10);
   $("f-tipo").value = "Pré Live";
   $("f-sit").value = "enc";
@@ -1730,6 +1765,7 @@ window.editBet = id=>{
   $("f-merc").value=b.mercado||"";
   $("f-odd").value=b.odd||"";
   $("f-stake").value=b.stake;
+  $("f-resp").value = b.resp ?? (respDe(b) ?? "");
   $("f-pl").value=b.pl;
   $("f-gm").value=b.gm??"";
   $("f-gv").value=b.gv??"";
@@ -1760,7 +1796,7 @@ $("f-save").onclick = async ()=>{
     filial_id: $("f-filial").value || null,
     comp:g("f-comp"), pais:g("f-pais"), tipo:g("f-tipo"),
     mand:g("f-mand"), vis:g("f-vis"), forma:g("f-forma"), mercado:g("f-merc"),
-    odd:+g("f-odd")||null, stake:+g("f-stake")||0, pl:pendente? 0 : (+g("f-pl")||0),
+    odd:+g("f-odd")||null, stake:+g("f-stake")||0, resp:+g("f-resp")||null, pl:pendente? 0 : (+g("f-pl")||0),
     gm:pendente||g("f-gm")===""?null:+g("f-gm"), gv:pendente||g("f-gv")===""?null:+g("f-gv"),
     obs:g("f-obs")
   };
@@ -3228,6 +3264,116 @@ function fillEstrCiclos(){
 
 
 
+
+/* ============ Relatório Geral (todas as bancas) ============ */
+let dbGeral = null;
+const calG = { ym: null, pct: false };
+async function loadGeral(){
+  const [bb, cb, jb, cj] = await Promise.all([
+    sb.from("banca_bets").select("data,pl,pendente,banca_id").eq("user_id", user.id).limit(20000),
+    sb.from("casa_bets").select("data,pl,estado,banca_id").eq("user_id", user.id).limit(20000),
+    sb.from("juros_bets").select("data,pl,resultado,banca_id").eq("user_id", user.id).limit(20000),
+    sb.from("ciclo_jogos").select("data,lucro,analise,banca_id").eq("user_id", user.id).limit(20000)
+  ]);
+  const rows = [];
+  (bb.data||[]).filter(r=>!r.pendente).forEach(r=>rows.push({data:r.data, pl:+r.pl||0, banca_id:r.banca_id}));
+  (cb.data||[]).filter(r=>r.estado!=="pendente").forEach(r=>rows.push({data:r.data, pl:+r.pl||0, banca_id:r.banca_id}));
+  (jb.data||[]).filter(r=>r.resultado!=="pendente").forEach(r=>rows.push({data:r.data, pl:+r.pl||0, banca_id:r.banca_id}));
+  (cj.data||[]).filter(r=>r.data && !String(r.analise||"").includes("⏳")).forEach(r=>rows.push({data:r.data, pl:+r.lucro||0, banca_id:r.banca_id}));
+  dbGeral = rows;
+}
+window.calGNav = d=>{ calG.ym.setMonth(calG.ym.getMonth()+d); renderGeral(); };
+window.calGPct = ()=>{ calG.pct=!calG.pct; renderGeral(); };
+function renderGeral(){
+  if(!$("tab-geral") || !dbGeral) return;
+  if(!calG.ym) calG.ym = new Date();
+  const rows = dbGeral;
+  const hojeS = new Date().toISOString().slice(0,10);
+  const mesS = hojeS.slice(0,7);
+  const somaN = arr => [arr.reduce((s,r)=>s+r.pl,0), arr.length];
+  const [plH,nH] = somaN(rows.filter(r=>r.data===hojeS));
+  const [plM,nM] = somaN(rows.filter(r=>String(r.data||"").slice(0,7)===mesS));
+  const [plT,nT] = somaN(rows);
+  const setCard=(id,pl,n,nid)=>{ const el=$(id); el.textContent=(pl>0?"+":"")+fmt(pl); el.className="v "+cls(pl); $(nid).textContent=`${n} operaç${n===1?"ão":"ões"}`; };
+  setCard("g-hoje",plH,nH,"g-hoje-n"); setCard("g-mes",plM,nM,"g-mes-n"); setCard("g-total",plT,nT,"g-total-n");
+
+  /* calendário geral */
+  const ano = calG.ym.getFullYear(), mes = calG.ym.getMonth();
+  const iniTotal = bancas.reduce((sm,b)=>sm+(+b.inicial||0),0);
+  const porDia = {};
+  rows.forEach(r=>{
+    if(!r.data) return;
+    const [y,m] = r.data.split("-").map(Number);
+    if(y!==ano || m-1!==mes) return;
+    (porDia[r.data] ||= {pl:0,n:0});
+    porDia[r.data].pl += r.pl; porDia[r.data].n++;
+  });
+  const totPl = Object.values(porDia).reduce((sm,d)=>sm+d.pl,0);
+  const totN  = Object.values(porDia).reduce((sm,d)=>sm+d.n,0);
+  const val = pl => calG.pct? ( iniTotal>0? ((pl/iniTotal*100)>0?"+":"")+(pl/iniTotal*100).toFixed(2).replace(".",",")+"%" : "—")
+                            : (pl>0?"+":"")+fmt(pl);
+  const MESES=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  const prim = new Date(ano, mes, 1);
+  const iniGrade = new Date(prim); iniGrade.setDate(1 - prim.getDay());
+  let cels = "";
+  for(let i=0;i<42;i++){
+    const d = new Date(iniGrade); d.setDate(iniGrade.getDate()+i);
+    const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    const fora = d.getMonth()!==mes;
+    const info = fora? null : porDia[ds];
+    const cls2 = ["cal-cell", fora?"cal-off":"", info? (info.pl>0?"cal-pos": info.pl<0?"cal-neg":""):"", ds===hojeS && !fora?"cal-hoje":""].filter(Boolean).join(" ");
+    cels += `<div class="${cls2}"><div class="d">${d.getDate()}</div>${info? `<div class="v">${val(info.pl)}</div><div class="o">${info.n} op${info.n>1?"s":""}</div>`:""}</div>`;
+    if(i>=34 && d.getMonth()!==mes && d.getDay()===6) break;
+  }
+  $("cal-geral").innerHTML = `
+    <div class="cal-head">
+      <div class="cal-total ${cls_(totPl)}">${totN? val(totPl):"—"} <span style="font-size:11px;color:var(--dim);font-weight:600">${totN? totN+" ops no mês":"sem operações no mês"}</span></div>
+      <div class="cal-nav">
+        <button class="iconbtn" onclick="calGNav(-1)">‹</button>
+        <div class="cal-mes">${MESES[mes]}/${ano}</div>
+        <button class="iconbtn" onclick="calGNav(1)">›</button>
+        <button class="iconbtn" onclick="calGPct()" title="Alternar entre R$ e % da soma das bancas iniciais">${calG.pct? "R$":"%"}</button>
+      </div>
+    </div>
+    <div class="cal-grid">${["D","S","T","Q","Q","S","S"].map(x=>`<div class="cal-dow">${x}</div>`).join("")}${cels}</div>`;
+
+  /* por banca no mês selecionado */
+  const mesSel = `${ano}-${String(mes+1).padStart(2,"0")}`;
+  const doMes = rows.filter(r=>String(r.data||"").slice(0,7)===mesSel);
+  const TIPOS_G = { bolsa:"Bolsa", ciclos:"Ciclos", casa:"Casa de Aposta", juros:"Juros" };
+  const porBanca = new Map();
+  doMes.forEach(r=>{ const o=porBanca.get(r.banca_id)||{pl:0,n:0}; o.pl+=r.pl; o.n++; porBanca.set(r.banca_id,o); });
+  $("g-bancas").innerHTML = porBanca.size? [...porBanca.entries()]
+    .map(([id,o])=>({b:bancas.find(x=>x.id===id), o}))
+    .sort((a,z)=>z.o.pl-a.o.pl)
+    .map(({b,o})=>`<tr><td>📂 <b>${esc(b?.nome||"?")}</b></td><td>${TIPOS_G[b?.tipo]||b?.tipo||"—"}</td><td class="num">${o.n}</td><td class="num ${cls(o.pl)}">${(o.pl>0?"+":"")+fmt(o.pl)}</td></tr>`).join("")
+    : `<tr><td colspan="4" class="empty">Sem operações neste mês.</td></tr>`;
+
+  /* por dia do mês selecionado */
+  const dias = Object.entries(porDia).sort((a,z)=>a[0].localeCompare(z[0]));
+  let acum = 0;
+  $("g-dias").innerHTML = dias.length? dias.map(([ds,o])=>{
+    acum += o.pl;
+    const [y,m,d] = ds.split("-");
+    return `<tr><td>${d}/${m}</td><td class="num">${o.n}</td>
+      <td class="num ${cls(o.pl)}">${(o.pl>0?"+":"")+fmt(o.pl)}</td>
+      <td class="num ${cls(acum)}">${(acum>0?"+":"")+fmt(acum)}</td></tr>`;
+  }).join("") : `<tr><td colspan="4" class="empty">Sem operações neste mês.</td></tr>`;
+
+  /* por mês (tudo) */
+  const porMes = new Map();
+  rows.forEach(r=>{ const k=String(r.data||"").slice(0,7); if(!k) return; const o=porMes.get(k)||{pl:0,n:0}; o.pl+=r.pl; o.n++; porMes.set(k,o); });
+  const meses = [...porMes.entries()].sort((a,z)=>a[0].localeCompare(z[0]));
+  let acumM = 0;
+  $("g-meses").innerHTML = meses.length? meses.map(([k,o])=>{
+    acumM += o.pl;
+    const [y,m] = k.split("-");
+    return `<tr><td>${MESES[+m-1]}/${y}</td><td class="num">${o.n}</td>
+      <td class="num ${cls(o.pl)}">${(o.pl>0?"+":"")+fmt(o.pl)}</td>
+      <td class="num ${cls(acumM)}">${(acumM>0?"+":"")+fmt(acumM)}</td></tr>`;
+  }).join("") : `<tr><td colspan="4" class="empty">Nenhuma operação registrada ainda.</td></tr>`;
+}
+
 /* ============ Calendário mensal ============ */
 const calSt = { ym: null, pct: false };
 function calFonte(){
@@ -3318,12 +3464,28 @@ function filClear(){
 function fRespHint(){
   const el = $("f-resp-hint"); if(!el) return;
   const lay = /\blay\b/i.test($("f-forma").value||"");
-  const odd = +$("f-odd").value||0, stake = +$("f-stake").value||0;
-  el.innerHTML = (lay && odd>1 && stake>0)
-    ? `Lay: você arrisca <b>${fmt(stake*(odd-1))}</b> (responsabilidade) pra ganhar ${fmt(stake)}`
+  const odd = +$("f-odd").value||0, stake = +$("f-stake").value||0, resp = +$("f-resp").value||0;
+  el.innerHTML = (lay && odd>1 && (stake>0||resp>0))
+    ? `Lay: arrisca <b>${fmt(resp || stake*(odd-1))}</b> pra ganhar <b>${fmt(stake || (odd>1? resp/(odd-1):0))}</b>`
     : "";
 }
-["f-forma","f-odd","f-stake"].forEach(id=>{ const el=$(id); if(el){ el.addEventListener("input", fRespHint); } });
+function fSync(origem){
+  const odd = +$("f-odd").value||0;
+  const lay = /\blay\b/i.test($("f-forma").value||"");
+  if(lay && odd>1){
+    if(origem==="stake" && $("f-stake").value!=="") $("f-resp").value = (+$("f-stake").value*(odd-1)).toFixed(2);
+    else if(origem==="resp" && $("f-resp").value!=="") $("f-stake").value = (+$("f-resp").value/(odd-1)).toFixed(2);
+    else if(origem==="odd"){
+      if(document.activeElement===$("f-resp")){ if($("f-resp").value!=="") $("f-stake").value = (+$("f-resp").value/(odd-1)).toFixed(2); }
+      else if($("f-stake").value!=="") $("f-resp").value = (+$("f-stake").value*(odd-1)).toFixed(2);
+    }
+  }
+  fRespHint();
+}
+$("f-stake").addEventListener("input", ()=>fSync("stake"));
+$("f-resp").addEventListener("input", ()=>fSync("resp"));
+$("f-odd").addEventListener("input", ()=>fSync("odd"));
+$("f-forma").addEventListener("input", fRespHint);
 $("f-pl-com").onclick = ()=>{
   const v = +$("f-pl").value;
   if(!v || v<=0){ toast("Digite primeiro o ganho (positivo) no P/L — a comissão só desconta dos greens.", true); return; }
