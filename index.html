@@ -331,6 +331,15 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
     <table><thead><tr><th>Tipo</th><th class="num">Bancas</th><th class="num">Banca atual</th><th class="num">% do total</th></tr></thead>
     <tbody id="bg-tipos"></tbody></table>
   </div>
+  <div class="panel">
+    <h2>Evolução por mês</h2>
+    <table><thead><tr><th>Mês</th><th class="num">Operações</th><th class="num">P/L</th><th class="num">Aportes − Lev.</th><th class="num">Banca Geral no fim do mês</th></tr></thead>
+    <tbody id="bg-meses"></tbody></table>
+  </div>
+  <div class="panel">
+    <h2>Calendário geral do mês</h2>
+    <div id="cal-geral2"></div>
+  </div>
 </section>
 
 <section id="tab-geral" class="tab">
@@ -1120,7 +1129,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 
 <script>
 /* ============ CONFIGURAÇÃO DO SUPABASE ============ */
-const APP_VERSAO = "v37";
+const APP_VERSAO = "v38";
 const SUPABASE_URL = "https://zfsmrhsarjzxnsntfwog.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umDFIXKEgoQHjDu8UY-wDA_Sdno9GtB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1568,7 +1577,7 @@ document.querySelectorAll("nav button").forEach(btn=>{
     irParaAba(btn.dataset.tab);
     if(btn.dataset.tab==="banca"){ renderBancaTab(); refreshResumo(); }
     else if(btn.dataset.tab==="geral"){ loadGeral().then(renderGeral).catch(e=>console.error(e)); }
-    else if(btn.dataset.tab==="bancageral"){ renderGeralBanca(); refreshResumo().then(renderGeralBanca).catch(e=>console.error(e)); }
+    else if(btn.dataset.tab==="bancageral"){ renderGeralBanca(); Promise.all([refreshResumo(), loadGeral()]).then(renderGeralBanca).catch(e=>console.error(e)); }
     else renderAll();
   };
 });
@@ -3465,10 +3474,32 @@ function renderGeralBanca(){
   $("bg-tipos").innerHTML = [...porTipo.entries()].sort((a,z)=>z[1].saldo-a[1].saldo).map(([t,o])=>
     `<tr><td>${TIPOS_BG[t]||t}</td><td class="num">${o.n}</td><td class="num mono">${fmtS(o.saldo)}</td><td class="num">${total? pct(o.saldo/total):"—"}</td></tr>`).join("")
     || `<tr><td colspan="4" class="empty">Nenhuma banca ainda.</td></tr>`;
+
+  /* evolução por mês + calendário (usa dbGeral) */
+  const MESES_BG = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  if(dbGeral){
+    const porMes = new Map();
+    dbGeral.forEach(r=>{ const k=String(r.data||"").slice(0,7); if(!k) return; const o=porMes.get(k)||{pl:0,n:0,mov:0}; o.pl+=r.pl; o.n++; porMes.set(k,o); });
+    (dbGeralMovs||[]).forEach(m=>{ const k=String(m.data||"").slice(0,7); if(!k) return; const o=porMes.get(k)||{pl:0,n:0,mov:0}; o.mov+=m.delta; porMes.set(k,o); });
+    const meses = [...porMes.entries()].sort((a,z)=>a[0].localeCompare(z[0]));
+    let acum = totIni;
+    $("bg-meses").innerHTML = meses.length? meses.map(([k,o])=>{
+      acum += o.pl + o.mov;
+      const [y,m] = k.split("-");
+      return `<tr><td>${MESES_BG[+m-1]}/${y}</td><td class="num">${o.n}</td>
+        <td class="num ${cls(o.pl)}">${olhoOn? (o.pl>0?"+":"")+fmt(o.pl) : "••"}</td>
+        <td class="num ${cls(o.mov)}">${olhoOn? (o.mov>0?"+":"")+fmt(o.mov) : "••"}</td>
+        <td class="num mono ${cls(acum-totIni)}">${fmtS(acum)}</td></tr>`;
+    }).join("") : `<tr><td colspan="5" class="empty">Nenhuma operação registrada ainda.</td></tr>`;
+    $("cal-geral2").innerHTML = calGeralHTML(dbGeral);
+  } else {
+    $("bg-meses").innerHTML = `<tr><td colspan="5" class="empty">Carregando…</td></tr>`;
+    $("cal-geral2").innerHTML = `<p class="hint">Carregando o calendário…</p>`;
+  }
 }
 
 /* ============ Relatório Geral (todas as bancas) ============ */
-let dbGeral = null;
+let dbGeral = null, dbGeralMovs = [];
 const calG = { ym: null, pct: false };
 async function loadGeral(){
   const [bb, cb, jb, cj] = await Promise.all([
@@ -3487,24 +3518,16 @@ async function loadGeral(){
   (cj.data||[]).filter(r=>r.data && !String(r.analise||"").includes("⏳")).forEach(r=>rows.push({data:r.data, pl:+r.lucro||0, banca_id:r.banca_id,
     desc: [r.jogo||"Jogo", r.estrategia].filter(Boolean).join(" · ")}));
   dbGeral = rows;
+  try{
+    const { data: mvs } = await sb.from("banca_movs").select("data,tipo,valor").eq("user_id", user.id).limit(20000);
+    dbGeralMovs = (mvs||[]).map(m=>({ data:m.data, delta: m.tipo==="aporte"? +m.valor : -(+m.valor) }));
+  }catch(e){ dbGeralMovs = []; }
 }
-window.calGNav = d=>{ calG.ym.setMonth(calG.ym.getMonth()+d); calG.dia=null; renderGeral(); };
-window.calGDia = ds=>{ calG.dia = calG.dia===ds? null : ds; renderGeral(); };
-window.calGPct = ()=>{ calG.pct=!calG.pct; renderGeral(); };
-function renderGeral(){
-  if(!$("tab-geral") || !dbGeral) return;
+window.calGNav = d=>{ calG.ym.setMonth(calG.ym.getMonth()+d); calG.dia=null; renderGeral(); renderGeralBanca(); };
+window.calGDia = ds=>{ calG.dia = calG.dia===ds? null : ds; renderGeral(); renderGeralBanca(); };
+function calGeralHTML(rows){
   if(!calG.ym) calG.ym = new Date();
-  const rows = dbGeral;
   const hojeS = new Date().toISOString().slice(0,10);
-  const mesS = hojeS.slice(0,7);
-  const somaN = arr => [arr.reduce((s,r)=>s+r.pl,0), arr.length];
-  const [plH,nH] = somaN(rows.filter(r=>r.data===hojeS));
-  const [plM,nM] = somaN(rows.filter(r=>String(r.data||"").slice(0,7)===mesS));
-  const [plT,nT] = somaN(rows);
-  const setCard=(id,pl,n,nid)=>{ const el=$(id); el.textContent=(pl>0?"+":"")+fmt(pl); el.className="v "+cls(pl); $(nid).textContent=`${n} operaç${n===1?"ão":"ões"}`; };
-  setCard("g-hoje",plH,nH,"g-hoje-n"); setCard("g-mes",plM,nM,"g-mes-n"); setCard("g-total",plT,nT,"g-total-n");
-
-  /* calendário geral */
   const ano = calG.ym.getFullYear(), mes = calG.ym.getMonth();
   const iniTotal = bancas.reduce((sm,b)=>sm+(+b.inicial||0),0);
   const porDia = {};
@@ -3532,7 +3555,7 @@ function renderGeral(){
     cels += `<div class="${cls2}"${info? ` onclick="calGDia('${ds}')" title="Clique para ver o resumo do dia"`:""}><div class="d">${d.getDate()}</div>${info? `<div class="v">${val(info.pl)}</div><div class="o">${info.n} op${info.n>1?"s":""}</div>`:""}</div>`;
     if(i>=34 && d.getMonth()!==mes && d.getDay()===6) break;
   }
-  $("cal-geral").innerHTML = `
+  return `
     <div class="cal-head">
       <div class="cal-total ${cls_(totPl)}">${totN? val(totPl):"—"} <span style="font-size:11px;color:var(--dim);font-weight:600">${totN? totN+" ops no mês":"sem operações no mês"}</span></div>
       <div class="cal-nav">
@@ -3544,6 +3567,23 @@ function renderGeral(){
     </div>
     <div class="cal-grid">${["D","S","T","Q","Q","S","S"].map(x=>`<div class="cal-dow">${x}</div>`).join("")}${cels}</div>
     ${calG.dia? calDiaDetHTML(rows.filter(r=>r.data===calG.dia), calG.dia, true) : ""}`;
+}
+window.calGPct = ()=>{ calG.pct=!calG.pct; renderGeral(); };
+function renderGeral(){
+  if(!$("tab-geral") || !dbGeral) return;
+  if(!calG.ym) calG.ym = new Date();
+  const rows = dbGeral;
+  const hojeS = new Date().toISOString().slice(0,10);
+  const mesS = hojeS.slice(0,7);
+  const somaN = arr => [arr.reduce((s,r)=>s+r.pl,0), arr.length];
+  const [plH,nH] = somaN(rows.filter(r=>r.data===hojeS));
+  const [plM,nM] = somaN(rows.filter(r=>String(r.data||"").slice(0,7)===mesS));
+  const [plT,nT] = somaN(rows);
+  const setCard=(id,pl,n,nid)=>{ const el=$(id); el.textContent=(pl>0?"+":"")+fmt(pl); el.className="v "+cls(pl); $(nid).textContent=`${n} operaç${n===1?"ão":"ões"}`; };
+  setCard("g-hoje",plH,nH,"g-hoje-n"); setCard("g-mes",plM,nM,"g-mes-n"); setCard("g-total",plT,nT,"g-total-n");
+
+  /* calendário geral */
+  $("cal-geral").innerHTML = calGeralHTML(rows);
 
   /* por banca no mês selecionado */
   const mesSel = `${ano}-${String(mes+1).padStart(2,"0")}`;
