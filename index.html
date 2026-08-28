@@ -180,6 +180,14 @@ tr.r td:first-child{box-shadow:inset 3px 0 0 var(--red)}
 .cal-neg{background:rgba(255,107,107,.10);border-color:rgba(255,107,107,.5)}
 .cal-neg .v{color:var(--neg)}
 .cal-hoje{border-color:#e8ecf1;border-width:1.5px}
+.cal-click{cursor:pointer;transition:transform .08s}
+.cal-click:hover{transform:scale(1.04)}
+.cal-sel{outline:2px solid var(--gold);outline-offset:1px}
+.cal-dia-det{margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:14px}
+.cal-dia-det h3{font-size:13px;margin:0 0 10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.cal-dia-det .op{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:12.5px;align-items:center}
+.cal-dia-det .op:last-child{border-bottom:none}
+.cal-dia-det .op .q{color:var(--dim);font-size:11px}
 @media(max-width:640px){.cal-cell{min-height:52px;padding:4px 2px}.cal-cell .v{font-size:10px}}
 tr.grp td{background:var(--panel2);font-weight:800;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold)}
 tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
@@ -1064,7 +1072,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 
 <script>
 /* ============ CONFIGURAÇÃO DO SUPABASE ============ */
-const APP_VERSAO = "v33";
+const APP_VERSAO = "v34";
 const SUPABASE_URL = "https://zfsmrhsarjzxnsntfwog.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umDFIXKEgoQHjDu8UY-wDA_Sdno9GtB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3265,24 +3273,43 @@ function fillEstrCiclos(){
 
 
 
+function calDiaDetHTML(ops, ds, comBanca){
+  if(!ops.length) return "";
+  const [y,m,d] = ds.split("-");
+  const tot = ops.reduce((sm,o)=>sm+o.pl,0);
+  const nomeB = id => (bancas.find(b=>b.id===id)||{}).nome || "";
+  const linhas = [...ops].sort((a,z)=>z.pl-a.pl).map(o=>
+    `<div class="op"><div>${comBanca && o.banca_id? `<b>📂 ${esc(nomeB(o.banca_id))}</b> · `:""}${esc(o.desc||"Operação")}</div>
+     <div class="${cls(o.pl)}" style="font-weight:700;white-space:nowrap">${(o.pl>0?"+":"")+fmt(o.pl)}</div></div>`).join("");
+  return `<div class="cal-dia-det">
+    <h3><span>📅 Resumo de ${d}/${m}/${y} · ${ops.length} operaç${ops.length===1?"ão":"ões"}</span>
+    <span class="${cls(tot)}" style="font-size:15px;font-weight:800">${(tot>0?"+":"")+fmt(tot)}</span></h3>
+    ${linhas}</div>`;
+}
+
 /* ============ Relatório Geral (todas as bancas) ============ */
 let dbGeral = null;
 const calG = { ym: null, pct: false };
 async function loadGeral(){
   const [bb, cb, jb, cj] = await Promise.all([
-    sb.from("banca_bets").select("data,pl,pendente,banca_id").eq("user_id", user.id).limit(20000),
-    sb.from("casa_bets").select("data,pl,estado,banca_id").eq("user_id", user.id).limit(20000),
-    sb.from("juros_bets").select("data,pl,resultado,banca_id").eq("user_id", user.id).limit(20000),
-    sb.from("ciclo_jogos").select("data,lucro,analise,banca_id").eq("user_id", user.id).limit(20000)
+    sb.from("banca_bets").select("data,pl,pendente,banca_id,mand,vis,mercado,forma").eq("user_id", user.id).limit(20000),
+    sb.from("casa_bets").select("data,pl,estado,banca_id,selecoes,casa").eq("user_id", user.id).limit(20000),
+    sb.from("juros_bets").select("data,pl,resultado,banca_id,jogo,aposta,odd").eq("user_id", user.id).limit(20000),
+    sb.from("ciclo_jogos").select("data,lucro,analise,banca_id,jogo,estrategia").eq("user_id", user.id).limit(20000)
   ]);
   const rows = [];
-  (bb.data||[]).filter(r=>!r.pendente).forEach(r=>rows.push({data:r.data, pl:+r.pl||0, banca_id:r.banca_id}));
-  (cb.data||[]).filter(r=>r.estado!=="pendente").forEach(r=>rows.push({data:r.data, pl:+r.pl||0, banca_id:r.banca_id}));
-  (jb.data||[]).filter(r=>r.resultado!=="pendente").forEach(r=>rows.push({data:r.data, pl:+r.pl||0, banca_id:r.banca_id}));
-  (cj.data||[]).filter(r=>r.data && !String(r.analise||"").includes("⏳")).forEach(r=>rows.push({data:r.data, pl:+r.lucro||0, banca_id:r.banca_id}));
+  (bb.data||[]).filter(r=>!r.pendente).forEach(r=>rows.push({data:r.data, pl:+r.pl||0, banca_id:r.banca_id,
+    desc: [[r.mand,r.vis].filter(Boolean).join(" x "), r.forma||r.mercado].filter(Boolean).join(" · ")||"Entrada"}));
+  (cb.data||[]).filter(r=>r.estado!=="pendente").forEach(r=>rows.push({data:r.data, pl:+r.pl||0, banca_id:r.banca_id,
+    desc: [((r.selecoes||[])[0]?.titulo)||"Aposta", (r.selecoes||[])[0]?.tipo, r.casa].filter(Boolean).join(" · ")}));
+  (jb.data||[]).filter(r=>r.resultado!=="pendente").forEach(r=>rows.push({data:r.data, pl:+r.pl||0, banca_id:r.banca_id,
+    desc: [r.jogo||"Aposta", (r.aposta==="lay"?"Lay":"Back")+(r.odd?` @ ${(+r.odd).toFixed(2).replace(".",",")}`:"")].filter(Boolean).join(" · ")}));
+  (cj.data||[]).filter(r=>r.data && !String(r.analise||"").includes("⏳")).forEach(r=>rows.push({data:r.data, pl:+r.lucro||0, banca_id:r.banca_id,
+    desc: [r.jogo||"Jogo", r.estrategia].filter(Boolean).join(" · ")}));
   dbGeral = rows;
 }
-window.calGNav = d=>{ calG.ym.setMonth(calG.ym.getMonth()+d); renderGeral(); };
+window.calGNav = d=>{ calG.ym.setMonth(calG.ym.getMonth()+d); calG.dia=null; renderGeral(); };
+window.calGDia = ds=>{ calG.dia = calG.dia===ds? null : ds; renderGeral(); };
 window.calGPct = ()=>{ calG.pct=!calG.pct; renderGeral(); };
 function renderGeral(){
   if(!$("tab-geral") || !dbGeral) return;
@@ -3321,8 +3348,8 @@ function renderGeral(){
     const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
     const fora = d.getMonth()!==mes;
     const info = fora? null : porDia[ds];
-    const cls2 = ["cal-cell", fora?"cal-off":"", info? (info.pl>0?"cal-pos": info.pl<0?"cal-neg":""):"", ds===hojeS && !fora?"cal-hoje":""].filter(Boolean).join(" ");
-    cels += `<div class="${cls2}"><div class="d">${d.getDate()}</div>${info? `<div class="v">${val(info.pl)}</div><div class="o">${info.n} op${info.n>1?"s":""}</div>`:""}</div>`;
+    const cls2 = ["cal-cell", fora?"cal-off":"", info? (info.pl>0?"cal-pos": info.pl<0?"cal-neg":""):"", info?"cal-click":"", ds===calG.dia?"cal-sel":"", ds===hojeS && !fora?"cal-hoje":""].filter(Boolean).join(" ");
+    cels += `<div class="${cls2}"${info? ` onclick="calGDia('${ds}')" title="Clique para ver o resumo do dia"`:""}><div class="d">${d.getDate()}</div>${info? `<div class="v">${val(info.pl)}</div><div class="o">${info.n} op${info.n>1?"s":""}</div>`:""}</div>`;
     if(i>=34 && d.getMonth()!==mes && d.getDay()===6) break;
   }
   $("cal-geral").innerHTML = `
@@ -3335,7 +3362,8 @@ function renderGeral(){
         <button class="iconbtn" onclick="calGPct()" title="Alternar entre R$ e % da soma das bancas iniciais">${calG.pct? "R$":"%"}</button>
       </div>
     </div>
-    <div class="cal-grid">${["D","S","T","Q","Q","S","S"].map(x=>`<div class="cal-dow">${x}</div>`).join("")}${cels}</div>`;
+    <div class="cal-grid">${["D","S","T","Q","Q","S","S"].map(x=>`<div class="cal-dow">${x}</div>`).join("")}${cels}</div>
+    ${calG.dia? calDiaDetHTML(rows.filter(r=>r.data===calG.dia), calG.dia, true) : ""}`;
 
   /* por banca no mês selecionado */
   const mesSel = `${ano}-${String(mes+1).padStart(2,"0")}`;
@@ -3378,16 +3406,21 @@ function renderGeral(){
 const calSt = { ym: null, pct: false };
 function calFonte(){
   const t = tipoAtivo();
-  if(t==="casa")  return db.casa.filter(b=>b.estado!=="pendente").map(b=>({data:b.data, pl:+b.pl||0}));
-  if(t==="ciclos")return db.cjogos.filter(j=>j.data && !String(j.analise||"").includes("⏳")).map(j=>({data:j.data, pl:+j.lucro||0}));
-  if(t==="juros") return db.juros.filter(j=>j.resultado!=="pendente").map(j=>({data:j.data, pl:+j.pl||0}));
-  return db.bets.filter(b=>!b.pendente).map(b=>({data:b.data, pl:+b.pl||0}));
+  if(t==="casa")  return db.casa.filter(b=>b.estado!=="pendente").map(b=>({data:b.data, pl:+b.pl||0,
+    desc: [((b.selecoes||[])[0]?.titulo)||"Aposta", (b.selecoes||[])[0]?.tipo, b.casa].filter(Boolean).join(" · ")}));
+  if(t==="ciclos")return db.cjogos.filter(j=>j.data && !String(j.analise||"").includes("⏳")).map(j=>({data:j.data, pl:+j.lucro||0,
+    desc: [j.jogo||"Jogo", j.estrategia].filter(Boolean).join(" · ")}));
+  if(t==="juros") return db.juros.filter(j=>j.resultado!=="pendente").map(j=>({data:j.data, pl:+j.pl||0,
+    desc: [j.jogo||"Aposta", (j.aposta==="lay"?"Lay":"Back")+(j.odd?` @ ${(+j.odd).toFixed(2).replace(".",",")}`:"")].filter(Boolean).join(" · ")}));
+  return db.bets.filter(b=>!b.pendente).map(b=>({data:b.data, pl:+b.pl||0,
+    desc: [[b.mand,b.vis].filter(Boolean).join(" x "), b.forma||b.mercado].filter(Boolean).join(" · ")||"Entrada"}));
 }
 function calCont(){
   const t = tipoAtivo();
   return $(t==="casa"?"cal-casa": t==="ciclos"?"cal-ciclos": t==="juros"?"cal-juros":"cal-bolsa");
 }
-window.calNav = d=>{ calSt.ym.setMonth(calSt.ym.getMonth()+d); renderCal(); };
+window.calNav = d=>{ calSt.ym.setMonth(calSt.ym.getMonth()+d); calSt.dia=null; renderCal(); };
+window.calDia = ds=>{ calSt.dia = calSt.dia===ds? null : ds; renderCal(); };
 window.calPctToggle = ()=>{ calSt.pct=!calSt.pct; renderCal(); };
 function renderCal(){
   const cont = calCont(); if(!cont) return;
@@ -3416,8 +3449,8 @@ function renderCal(){
     const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
     const fora = d.getMonth()!==mes;
     const info = fora? null : porDia[ds];
-    const cls = ["cal-cell", fora?"cal-off":"", info? (info.pl>0?"cal-pos": info.pl<0?"cal-neg":""):"", ds===hojeS && !fora?"cal-hoje":""].filter(Boolean).join(" ");
-    cels += `<div class="${cls}"><div class="d">${d.getDate()}</div>${info? `<div class="v">${val(info.pl)}</div><div class="o">${info.n} op${info.n>1?"s":""}</div>`:""}</div>`;
+    const cls = ["cal-cell", fora?"cal-off":"", info? (info.pl>0?"cal-pos": info.pl<0?"cal-neg":""):"", info?"cal-click":"", ds===calSt.dia?"cal-sel":"", ds===hojeS && !fora?"cal-hoje":""].filter(Boolean).join(" ");
+    cels += `<div class="${cls}"${info? ` onclick="calDia('${ds}')" title="Clique para ver o resumo do dia"`:""}><div class="d">${d.getDate()}</div>${info? `<div class="v">${val(info.pl)}</div><div class="o">${info.n} op${info.n>1?"s":""}</div>`:""}</div>`;
     if(i>=34 && d.getMonth()!==mes && d.getDay()===6) break;
   }
   cont.innerHTML = `
@@ -3433,7 +3466,8 @@ function renderCal(){
     <div class="cal-grid">
       ${["D","S","T","Q","Q","S","S"].map(x=>`<div class="cal-dow">${x}</div>`).join("")}
       ${cels}
-    </div>`;
+    </div>
+    ${calSt.dia? calDiaDetHTML(calFonte().filter(e=>e.data===calSt.dia), calSt.dia, false) : ""}`;
 }
 function cls_(v){ return v>0?"pos": v<0?"neg":""; }
 
