@@ -51,10 +51,24 @@ header{border-bottom:1px solid var(--line);padding:0 22px;display:flex;align-ite
 .brand span{color:var(--mut);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
 .banca-pick{display:flex;align-items:center;gap:8px}
 .banca-pick select{width:auto;min-width:170px;background:var(--panel2);border-color:var(--line);font-weight:600;padding:8px 12px}
-nav{display:flex;gap:4px;margin-left:auto}
-nav button{background:none;border:none;color:var(--mut);font-weight:600;font-size:14px;padding:20px 12px;border-bottom:2px solid transparent}
-nav button.on{color:var(--txt);border-bottom-color:var(--gold)}
+#menu-btn{background:none;border:1px solid var(--line);border-radius:10px;color:var(--txt);font-size:19px;padding:7px 13px;cursor:pointer}
+#menu-btn:hover{border-color:var(--gold)}
+.hd-saldo-box{margin-left:auto;display:flex;align-items:center;gap:8px}
+#hd-saldo{font-size:17px;font-weight:800;letter-spacing:.02em}
+#hd-olho{background:none;border:1px solid var(--line);border-radius:9px;color:var(--txt);font-size:15px;padding:5px 10px;cursor:pointer}
+#hd-olho:hover{border-color:var(--gold)}
+#drawer{position:fixed;top:0;left:0;bottom:0;width:262px;background:linear-gradient(180deg,#121a23,#0E141B);border-right:1px solid var(--line);z-index:60;transform:translateX(-102%);transition:transform .22s ease;display:flex;flex-direction:column;padding:14px}
+#drawer.aberto{transform:translateX(0)}
+#drawer-fundo{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:55;opacity:0;pointer-events:none;transition:opacity .22s}
+#drawer-fundo.aberto{opacity:1;pointer-events:auto}
+.dr-topo{display:flex;justify-content:space-between;align-items:center;padding:4px 6px 14px;font-size:15px}
+#drawer-x{background:none;border:none;color:var(--mut);font-size:17px;cursor:pointer}
+#drawer-x:hover{color:var(--txt)}
+nav{display:flex;flex-direction:column;gap:2px}
+nav button{background:none;border:none;color:var(--mut);font-weight:600;font-size:14.5px;padding:12px 12px;border-left:3px solid transparent;text-align:left;border-radius:0 10px 10px 0;cursor:pointer}
+nav button.on{color:var(--txt);border-left-color:var(--gold);background:rgba(230,177,58,.07)}
 nav button:hover{color:var(--txt)}
+#drawer .session{margin-top:auto;display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:14px 10px;border-top:1px solid var(--line)}
 .session{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--dim)}
 .session button{background:none;border:1px solid var(--line);color:var(--mut);border-radius:6px;padding:5px 11px;font-size:12px}
 .session button:hover{color:var(--txt)}
@@ -215,8 +229,8 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
   .formgrid .c3,.formgrid .c4,.formgrid .c6{grid-column:span 2}
   .cfg{grid-template-columns:1fr}
   .hero-banca .big{font-size:34px}
-  nav{width:100%;overflow-x:auto;margin-left:0}
-  nav button{padding:14px 10px;white-space:nowrap}
+  .hd-saldo-box{margin-left:auto}
+  #hd-saldo{font-size:15px}
   .banca-pick{width:100%;padding-bottom:10px}
   .banca-pick select{flex:1}
 }
@@ -241,22 +255,32 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 <!-- ============ APP ============ -->
 <div id="app">
 <header>
+  <button id="menu-btn" title="Menu">☰</button>
   <div class="brand"><b>Gestão de Banca</b><span>Rafael Andrade</span></div>
   <div class="banca-pick">
     <select id="b-sel" title="Banca ativa"></select>
   </div>
+  <div class="hd-saldo-box">
+    <span id="hd-saldo" class="mono">—</span>
+    <button id="hd-olho" title="Mostrar/ocultar valores">👁</button>
+  </div>
+</header>
+<div id="drawer-fundo"></div>
+<aside id="drawer">
+  <div class="dr-topo"><b>Menu</b><button id="drawer-x">✕</button></div>
   <nav>
-    <button data-tab="banca">Banca</button>
-    <button data-tab="geral">Relatório Geral</button>
-    <button data-tab="painel" class="on">Painel</button>
-    <button data-tab="dashboard">Dashboard</button>
-    <button data-tab="entradas">Entradas</button>
-    <button data-tab="analises">Análises</button>
-    <button data-tab="cadastros">Cadastros</button>
-    <button data-tab="config">Configuração</button>
+    <button data-tab="banca">🏦 Banca</button>
+    <button data-tab="bancageral">💰 Banca Geral</button>
+    <button data-tab="geral">📊 Relatório Geral</button>
+    <button data-tab="painel" class="on">📌 Painel</button>
+    <button data-tab="dashboard">📈 Dashboard</button>
+    <button data-tab="entradas">✍️ Entradas</button>
+    <button data-tab="analises">🔎 Análises</button>
+    <button data-tab="cadastros">🗂 Cadastros</button>
+    <button data-tab="config">⚙️ Configuração</button>
   </nav>
   <div class="session"><span id="s-versao" class="mono" style="color:var(--dim)"></span><span id="s-email"></span><button id="s-sair">Sair</button></div>
-</header>
+</aside>
 
 <main>
 
@@ -283,6 +307,29 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
       <button class="btn" id="nb-criar">Criar banca</button>
       <p class="hint">Cada banca funciona como uma planilha separada. <b>Banca vinculada:</b> use quando o dinheiro sai de outra banca (ex.: um Método de Ciclos com R$ 200 da banca Gau) — a banca-mãe passa a mostrar essa banca no quadro de Gestão por filiais, com alocado, P/L e ROI.</p>
     </div>
+  </div>
+</section>
+
+<section id="tab-bancageral" class="tab">
+  <div class="panel">
+    <h2>Banca Geral — soma de todas as bancas</h2>
+    <p class="hint" style="margin-bottom:14px">Patrimônio total: banca inicial + resultados + aportes − levantamentos de cada banca. <b>Atenção às vinculadas:</b> se o dinheiro da banca vinculada saiu da banca-mãe, registre um levantamento na mãe pra não contar em dobro.</p>
+    <div class="cards">
+      <div class="card"><div class="k">Banca Geral</div><div class="v" id="bg-total">R$ 0,00</div><div class="s" id="bg-total-n">0 bancas</div></div>
+      <div class="card"><div class="k">Inicial somado</div><div class="v" id="bg-inicial">R$ 0,00</div><div class="s">soma das bancas iniciais</div></div>
+      <div class="card"><div class="k">Resultado</div><div class="v" id="bg-pl">R$ 0,00</div><div class="s">lucro/prejuízo de apostas</div></div>
+      <div class="card"><div class="k">Movimentações</div><div class="v" id="bg-mov">R$ 0,00</div><div class="s">aportes − levantamentos</div></div>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Por banca</h2>
+    <table><thead><tr><th>Banca</th><th>Tipo</th><th class="num">Inicial</th><th class="num">P/L</th><th class="num">Aportes − Lev.</th><th class="num">Banca atual</th><th class="num">% do total</th></tr></thead>
+    <tbody id="bg-tbody"></tbody></table>
+  </div>
+  <div class="panel">
+    <h2>Por tipo de gestão</h2>
+    <table><thead><tr><th>Tipo</th><th class="num">Bancas</th><th class="num">Banca atual</th><th class="num">% do total</th></tr></thead>
+    <tbody id="bg-tipos"></tbody></table>
   </div>
 </section>
 
@@ -1072,7 +1119,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 
 <script>
 /* ============ CONFIGURAÇÃO DO SUPABASE ============ */
-const APP_VERSAO = "v35";
+const APP_VERSAO = "v36";
 const SUPABASE_URL = "https://zfsmrhsarjzxnsntfwog.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umDFIXKEgoQHjDu8UY-wDA_Sdno9GtB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1346,7 +1393,7 @@ function renderBancaTab(){
     const filhas = bancas.filter(x=>x.banca_mae===b.id);
     const vincSaldo = filhas.reduce((sm,f)=>{ const rf = resumo[f.id]||{pl:0,mov:0}; return sm + (+f.inicial||0) + rf.pl + rf.mov; },0);
     const mae = b.banca_mae? bancas.find(x=>x.id===b.banca_mae) : null;
-    const extra = filhas.length? `<div class="bi" style="margin-top:3px">📎 ${filhas.length} vinculada${filhas.length>1?"s":""}: ${fmt(vincSaldo)} · <b>total ${fmt(saldo+vincSaldo)}</b></div>`
+    const extra = filhas.length? `<div class="bi" style="margin-top:3px">📎 ${filhas.length} vinculada${filhas.length>1?"s":""}: ${fmtS(vincSaldo)} · <b>total ${fmtS(saldo+vincSaldo)}</b></div>`
                 : mae? `<div class="bi" style="margin-top:3px">📎 vinculada à banca <b>${esc(mae.nome)}</b></div>` : "";
     return `<div class="bcard ${ativa?"ativa":""}">
       <div>
@@ -1355,7 +1402,7 @@ function renderBancaTab(){
         ${extra}
       </div>
       <div style="display:flex;align-items:center;gap:12px">
-        <div class="bs ${cls(r.pl)}">${fmt(saldo)}</div>
+        <div class="bs ${cls(r.pl)}">${fmtS(saldo)}</div>
         ${ativa? "" : `<button class="btn ghost sm" onclick="usarBanca('${b.id}')">Selecionar</button>`}
       </div>
     </div>`;
@@ -1516,9 +1563,11 @@ $("cad-imp-run").onclick = async ()=>{
 /* ============ Navegação ============ */
 document.querySelectorAll("nav button").forEach(btn=>{
   btn.onclick = ()=>{
+    abrirDrawer(false);
     irParaAba(btn.dataset.tab);
     if(btn.dataset.tab==="banca"){ renderBancaTab(); refreshResumo(); }
     else if(btn.dataset.tab==="geral"){ loadGeral().then(renderGeral).catch(e=>console.error(e)); }
+    else if(btn.dataset.tab==="bancageral"){ renderGeralBanca(); refreshResumo().then(renderGeralBanca).catch(e=>console.error(e)); }
     else renderAll();
   };
 });
@@ -3294,6 +3343,70 @@ function calDiaDetHTML(ops, ds, comBanca){
     ${linhas}</div>`;
 }
 
+
+/* ============ Gaveta (menu hambúrguer) ============ */
+function abrirDrawer(ab){ $("drawer").classList.toggle("aberto", ab); $("drawer-fundo").classList.toggle("aberto", ab); }
+$("menu-btn").onclick = ()=>abrirDrawer(true);
+$("drawer-x").onclick = ()=>abrirDrawer(false);
+$("drawer-fundo").onclick = ()=>abrirDrawer(false);
+
+/* ============ Olho / saldo do topo ============ */
+let olhoOn = (localStorage.getItem("gb_olho") ?? "1") === "1";
+const fmtS = v => olhoOn ? fmt(v) : "R$ ••••";
+function renderOlho(){ $("hd-olho").textContent = olhoOn ? "👁" : "🙈"; }
+$("hd-olho").onclick = ()=>{ olhoOn=!olhoOn; localStorage.setItem("gb_olho", olhoOn?"1":"0"); renderOlho(); renderHdSaldo(); renderBancaTab(); renderGeralBanca(); };
+function saldoAtivo(){
+  const t = tipoAtivo();
+  let pl = 0;
+  if(t==="casa") pl = db.casa.reduce((sm,b)=>sm+(+b.pl||0),0);
+  else if(t==="ciclos") pl = db.cjogos.reduce((sm,j)=>sm+(+j.lucro||0),0);
+  else if(t==="juros") pl = db.juros.reduce((sm,j)=>sm+(+j.pl||0),0);
+  else pl = db.bets.reduce((sm,b)=>sm+(+b.pl||0),0);
+  const mov = (db.movs||[]).reduce((sm,m)=>sm+(m.tipo==="aporte"? +m.valor : -m.valor),0);
+  return (+banca()?.inicial||0) + pl + mov;
+}
+function renderHdSaldo(){
+  if(!banca()){ $("hd-saldo").textContent="—"; return; }
+  const v = saldoAtivo();
+  $("hd-saldo").textContent = fmtS(v);
+  $("hd-saldo").className = "mono " + cls(v - (+banca().inicial||0));
+}
+
+/* ============ Banca Geral ============ */
+function renderGeralBanca(){
+  if(!$("bg-tbody")) return;
+  const TIPOS_BG = { bolsa:"Bolsa de Aposta", ciclos:"Método de Ciclos", casa:"Casa de Aposta", juros:"Juros Compostos" };
+  const linhas = bancas.map(b=>{
+    const r = resumo[b.id] || {pl:0,mov:0,n:0};
+    return { b, r, saldo: (+b.inicial||0) + r.pl + r.mov };
+  });
+  const total = linhas.reduce((sm,x)=>sm+x.saldo,0);
+  const totIni = linhas.reduce((sm,x)=>sm+(+x.b.inicial||0),0);
+  const totPl = linhas.reduce((sm,x)=>sm+x.r.pl,0);
+  const totMov = linhas.reduce((sm,x)=>sm+x.r.mov,0);
+  const setC=(id,v,c)=>{ const el=$(id); el.textContent = fmtS(v); el.className="v "+(c!==undefined? c : cls(v)); };
+  setC("bg-total", total, total>=totIni? "pos":"neg");
+  $("bg-total-n").textContent = `${bancas.length} banca${bancas.length===1?"":"s"}`;
+  setC("bg-inicial", totIni, "");
+  setC("bg-pl", totPl);
+  setC("bg-mov", totMov);
+  $("bg-tbody").innerHTML = linhas.length? [...linhas].sort((a,z)=>z.saldo-a.saldo).map(({b,r,saldo})=>{
+    const mae = b.banca_mae? bancas.find(x=>x.id===b.banca_mae) : null;
+    return `<tr><td>📂 <b>${esc(b.nome)}</b>${mae? ` <span style="font-size:11px;color:var(--dim)">📎 ${esc(mae.nome)}</span>`:""}</td>
+      <td>${TIPOS_BG[b.tipo]||b.tipo}</td>
+      <td class="num">${fmtS(+b.inicial||0)}</td>
+      <td class="num ${cls(r.pl)}">${olhoOn? (r.pl>0?"+":"")+fmt(r.pl) : "••"}</td>
+      <td class="num ${cls(r.mov)}">${olhoOn? (r.mov>0?"+":"")+fmt(r.mov) : "••"}</td>
+      <td class="num mono ${cls(saldo-(+b.inicial||0))}">${fmtS(saldo)}</td>
+      <td class="num">${total? pct(saldo/total) : "—"}</td></tr>`;
+  }).join("") : `<tr><td colspan="7" class="empty">Nenhuma banca ainda.</td></tr>`;
+  const porTipo = new Map();
+  linhas.forEach(({b,saldo})=>{ const o=porTipo.get(b.tipo)||{n:0,saldo:0}; o.n++; o.saldo+=saldo; porTipo.set(b.tipo,o); });
+  $("bg-tipos").innerHTML = [...porTipo.entries()].sort((a,z)=>z[1].saldo-a[1].saldo).map(([t,o])=>
+    `<tr><td>${TIPOS_BG[t]||t}</td><td class="num">${o.n}</td><td class="num mono">${fmtS(o.saldo)}</td><td class="num">${total? pct(o.saldo/total):"—"}</td></tr>`).join("")
+    || `<tr><td colspan="4" class="empty">Nenhuma banca ainda.</td></tr>`;
+}
+
 /* ============ Relatório Geral (todas as bancas) ============ */
 let dbGeral = null;
 const calG = { ym: null, pct: false };
@@ -3936,7 +4049,7 @@ function renderJurosAnalises(){
 function renderJuros(){ if(tipoAtivo()!=="juros") return; renderJurosPainel(); renderJurosEntradas(); renderJurosProj(); renderJurosAnalises(); }
 
 /* ============ Boot ============ */
-function renderAll(){ renderPainel(); renderDashboard(); renderEntradas(); renderAnalises(); renderCadastros(); renderConfig(); renderBancaTab(); renderCasa(); renderCiclos(); renderJuros(); renderFiliais(); fillFiliaisSelects(); renderCal(); }
+function renderAll(){ renderPainel(); renderDashboard(); renderEntradas(); renderAnalises(); renderCadastros(); renderConfig(); renderBancaTab(); renderCasa(); renderCiclos(); renderJuros(); renderFiliais(); fillFiliaisSelects(); renderCal(); renderHdSaldo(); renderOlho(); }
 $("s-versao").textContent = APP_VERSAO;
 document.querySelector(".login-card p.sub").insertAdjacentHTML("beforeend", ` <span class="mono" style="color:var(--dim);font-size:11px">· ${APP_VERSAO}</span>`);
 clearForm();
