@@ -1072,7 +1072,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 
 <script>
 /* ============ CONFIGURAÇÃO DO SUPABASE ============ */
-const APP_VERSAO = "v34";
+const APP_VERSAO = "v35";
 const SUPABASE_URL = "https://zfsmrhsarjzxnsntfwog.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umDFIXKEgoQHjDu8UY-wDA_Sdno9GtB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1329,6 +1329,7 @@ async function refreshResumo(){
     (y.data||[]).forEach(r=>{ const o = resumo[r.banca_id] || (resumo[r.banca_id]={pl:0,mov:0,n:0}); o.pl+= +r.lucro||0; o.n++; });
     (jj.data||[]).forEach(r=>{ const o = resumo[r.banca_id] || (resumo[r.banca_id]={pl:0,mov:0,n:0}); o.pl+= +r.pl||0; o.n++; });
     (m.data||[]).forEach(r=>{ const o = resumo[r.banca_id] || (resumo[r.banca_id]={pl:0,mov:0,n:0}); o.mov+= r.tipo==="aporte"? +r.valor : -r.valor; });
+    refreshResumo._at = Date.now();
   }catch(e){ console.error(e); }
   renderBancaTab();
 }
@@ -1342,10 +1343,16 @@ function renderBancaTab(){
     const r = resumo[b.id] || {pl:0,mov:0,n:0};
     const saldo = (+b.inicial||0) + r.pl + r.mov;
     const ativa = b.id===bancaId;
+    const filhas = bancas.filter(x=>x.banca_mae===b.id);
+    const vincSaldo = filhas.reduce((sm,f)=>{ const rf = resumo[f.id]||{pl:0,mov:0}; return sm + (+f.inicial||0) + rf.pl + rf.mov; },0);
+    const mae = b.banca_mae? bancas.find(x=>x.id===b.banca_mae) : null;
+    const extra = filhas.length? `<div class="bi" style="margin-top:3px">📎 ${filhas.length} vinculada${filhas.length>1?"s":""}: ${fmt(vincSaldo)} · <b>total ${fmt(saldo+vincSaldo)}</b></div>`
+                : mae? `<div class="bi" style="margin-top:3px">📎 vinculada à banca <b>${esc(mae.nome)}</b></div>` : "";
     return `<div class="bcard ${ativa?"ativa":""}">
       <div>
         <div class="bn">${esc(b.nome)} ${ativa?'<span class="badge">· ativa</span>':""}</div>
         <div class="bi"><span class="chip ${ (b.tipo||"bolsa")==="bolsa"?"back":((b.tipo)==="ciclos"?"live":"lay")}" style="margin-right:6px">${TIPOS_GESTAO[b.tipo||"bolsa"]}</span>Inicial ${fmt(+b.inicial||0)} · Gestão ${b.gestao}% · ${r.n} entrada${r.n===1?"":"s"}</div>
+        ${extra}
       </div>
       <div style="display:flex;align-items:center;gap:12px">
         <div class="bs ${cls(r.pl)}">${fmt(saldo)}</div>
@@ -3587,7 +3594,8 @@ function renderFiliais(){
   /* bancas vinculadas a esta banca (ex.: um Método de Ciclos rodando com dinheiro daqui) */
   const TIPOS_V = { bolsa:"Bolsa", ciclos:"Método de Ciclos", casa:"Casa de Aposta", juros:"Juros Compostos" };
   const vinculadas = bancas.filter(b=>b.banca_mae===bancaId);
-  if(vinculadas.length && vinculadas.some(v=>!resumo[v.id]) && !renderFiliais._req){
+  const resumoVelho = !refreshResumo._at || (Date.now()-refreshResumo._at) > 15000;
+  if(vinculadas.length && !renderFiliais._req && (vinculadas.some(v=>!resumo[v.id]) || resumoVelho)){
     renderFiliais._req = true;
     refreshResumo().then(()=>{ renderFiliais._req=false; renderFiliais(); }).catch(()=>{ renderFiliais._req=false; });
   }
