@@ -933,13 +933,14 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
   </div>
   <div class="panel" id="imp-panel" style="display:none">
     <h2>Importar apostas de planilha</h2>
-    <p class="hint" style="margin-bottom:12px">Formatos aceitos: <b>FulltBet</b> (abas mensais Jan–Dez), <b>Operações da Bolsa</b> (export com Odds Back/Lay) e a <b>planilha-modelo</b>. Aceita .xlsx ou .csv. As apostas serão <b>adicionadas</b> às existentes desta banca — não importe o mesmo arquivo duas vezes.</p>
+    <p class="hint" style="margin-bottom:12px">Formatos aceitos: <b>FulltBet</b> (abas mensais Jan–Dez), <b>Operações da Bolsa</b> (export com Odds Back/Lay), <b>P&L da Betfair</b> (BettingPandL.csv — Lucro/Perda por mercado) e a <b>planilha-modelo</b>. Aceita .xlsx ou .csv. As apostas serão <b>adicionadas</b> às existentes desta banca — pode reimportar o mesmo arquivo depois: as repetidas são ignoradas.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
       <div style="min-width:230px"><label>Formato da planilha</label>
         <select id="imp-modo">
           <option value="auto">Detectar automaticamente</option>
           <option value="fulltbet">FulltBet (abas Jan–Dez)</option>
           <option value="operacoes">Operações da Bolsa (export)</option>
+          <option value="betfairpl">P&L da Betfair (Lucro/Perda)</option>
           <option value="modelo">Planilha-modelo</option>
         </select></div>
       <input type="file" id="imp-file" accept=".xlsx,.xls,.csv" style="width:auto">
@@ -1119,7 +1120,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 
 <script>
 /* ============ CONFIGURAÇÃO DO SUPABASE ============ */
-const APP_VERSAO = "v36";
+const APP_VERSAO = "v37";
 const SUPABASE_URL = "https://zfsmrhsarjzxnsntfwog.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umDFIXKEgoQHjDu8UY-wDA_Sdno9GtB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2314,8 +2315,54 @@ function parseFulltbet(wbk){
   });
   return { out, erros, msg:`FulltBet (${abas.length} aba${abas.length===1?"":"s"} mensais lidas)` };
 }
-function detectarFormato(wbk){
-  if(wbk.SheetNames.some(n=>FULLTBET_MESES.includes(n.trim()))) return "fulltbet";
+/* --- formato 4: P&L da Betfair (BettingPandL.csv) --- */
+const BF_MESES = { jan:"01", fev:"02", mar:"03", abr:"04", mai:"05", jun:"06", jul:"07", ago:"08", set:"09", out:"10", nov:"11", dez:"12" };
+function bfData(txt){
+  const m = String(txt||"").trim().match(/^(\d{1,2})-([a-zçã]+)\.?-(\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?$/i);
+  if(!m) return null;
+  const mes = BF_MESES[impNorm(m[2]).slice(0,3)];
+  if(!mes) return null;
+  const ano = m[3].length===2? "20"+m[3] : m[3];
+  return `${ano}-${mes}-${String(+m[1]).padStart(2,"0")}`;
+}
+const bfEhData = txt => bfData(String(txt||"").replace(/\s+\d{1,2}:\d{2}\s*$/,"")) !== null || /\d{1,2}-[a-zçã]+\.?-\d{2,4}\s+\d{1,2}:\d{2}/i.test(String(txt||""));
+function parseBetfairPL(texto){
+  const out=[], erros=[];
+  const linhas = String(texto||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  if(!linhas.length) return { out, erros, msg:"arquivo vazio" };
+  const corpo = impNorm(linhas[0]).includes("mercado") && impNorm(linhas[0]).includes("lucro")? linhas.slice(1) : linhas;
+  corpo.forEach((linha,ix)=>{
+    const cols = linha.split(",");
+    if(cols.length < 4){ erros.push(`linha ${ix+2}`); return; }
+    const pl = impNum(cols.pop());
+    const dRes = cols.pop(), dIni = cols.pop();
+    let mercadoFull = cols.join(",").trim().replace(/^"|"$/g,"").replace(/""/g,'"').trim();
+    const data = bfData(String(dRes).replace(/\s+\d{1,2}:\d{2}\s*$/,"")) || bfData(String(dIni).replace(/\s+\d{1,2}:\d{2}\s*$/,""));
+    if(pl===null || !data || (!bfEhData(dRes) && !bfEhData(dIni))){ erros.push(`linha ${ix+2}`); return; }
+    /* "Esporte / Time A x Time B : Mercado" */
+    const pIdx = mercadoFull.indexOf(" : ");
+    const esquerda = pIdx>=0? mercadoFull.slice(0,pIdx) : mercadoFull;
+    const mercadoNome = pIdx>=0? mercadoFull.slice(pIdx+3).trim() : "";
+    const barra = esquerda.indexOf(" / ");
+    const jogo = (barra>=0? esquerda.slice(barra+3) : esquerda).trim();
+    const times = jogo.split(/\s+x\s+/i).map(t=>t.trim()).filter(Boolean);
+    out.push(impBase({
+      data,
+      mand: times[0]||jogo, vis: times[1]||"",
+      mercado: mercadoNome, forma:"", tipo:"Pré Live",
+      stake:0, pl,
+      obs:"BETFAIR P&L"
+    }));
+  });
+  return { out, erros, msg:`P&L da Betfair (${out.length} mercado${out.length===1?"":"s"} lidos)` };
+}
+function detectarFormato(wbk, texto){
+  if(texto){
+    const h = impNorm(texto.split(/\r?\n/)[0]||"");
+    if(h.includes("mercado") && (h.includes("lucro/perda") || h.includes("lucro perda"))) return "betfairpl";
+  }
+  if(wbk && wbk.SheetNames.some(n=>FULLTBET_MESES.includes(n.trim()))) return "fulltbet";
+  if(!wbk) return "modelo";
   const ws = wbk.Sheets[wbk.SheetNames[0]];
   const primeira = XLSX.utils.sheet_to_json(ws, { header:1, range:0, defval:"" })[0]||[];
   const nrm = primeira.map(impNorm);
@@ -2334,10 +2381,23 @@ $("imp-file").onchange = e=>{
   const r=new FileReader();
   r.onload = ()=>{
     try{
-      const wbk = XLSX.read(r.result, { type:"array", cellDates:true });
+      const ehCsv = /\.csv$/i.test(f.name);
+      let texto = null, wbk = null;
+      if(ehCsv){
+        try{ texto = new TextDecoder("utf-8", { fatal:true }).decode(r.result); }
+        catch(_){ texto = new TextDecoder("windows-1252").decode(r.result); }
+        if(texto.charCodeAt(0)===0xFEFF) texto = texto.slice(1);
+        wbk = XLSX.read(texto, { type:"string", cellDates:true });
+      } else {
+        wbk = XLSX.read(r.result, { type:"array", cellDates:true });
+      }
       let modo = $("imp-modo").value;
-      if(modo==="auto") modo = detectarFormato(wbk);
-      const res = modo==="fulltbet"? parseFulltbet(wbk) : modo==="operacoes"? parseOperacoes(wbk) : parseModelo(wbk);
+      if(modo==="auto") modo = detectarFormato(wbk, texto);
+      if(modo==="betfairpl" && !texto){
+        const ws = wbk.Sheets[wbk.SheetNames[0]];
+        texto = XLSX.utils.sheet_to_csv(ws);
+      }
+      const res = modo==="betfairpl"? parseBetfairPL(texto) : modo==="fulltbet"? parseFulltbet(wbk) : modo==="operacoes"? parseOperacoes(wbk) : parseModelo(wbk);
       /* detecta duplicadas: contra as apostas já registradas nesta banca e dentro do próprio arquivo */
       const existentes = new Set(db.bets.map(impAssinatura));
       const vistas = new Set();
