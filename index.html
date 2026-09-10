@@ -272,6 +272,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
     <button data-tab="banca">🏦 Banca</button>
     <button data-tab="bancageral">💰 Banca Geral</button>
     <button data-tab="geral">📊 Relatório Geral</button>
+    <button data-tab="ia">🤖 IA Coach</button>
     <button data-tab="painel" class="on">📌 Painel</button>
     <button data-tab="dashboard">📈 Dashboard</button>
     <button data-tab="entradas">✍️ Entradas</button>
@@ -307,6 +308,23 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
       <button class="btn" id="nb-criar">Criar banca</button>
       <p class="hint">Cada banca funciona como uma planilha separada. <b>Banca vinculada:</b> use quando o dinheiro sai de outra banca (ex.: um Método de Ciclos com R$ 200 da banca Gau) — a banca-mãe passa a mostrar essa banca no quadro de Gestão por filiais, com alocado, P/L e ROI.</p>
     </div>
+  </div>
+</section>
+
+<section id="tab-ia" class="tab">
+  <div class="panel">
+    <h2>🤖 IA Coach — análise da sua gestão (Gemini)</h2>
+    <p class="hint" style="margin-bottom:12px">A IA recebe um resumo dos seus números (banca ativa + visão geral) e devolve um diagnóstico: onde você está acertando, onde está pecando e o que ajustar. Os dados vão direto do seu navegador para o Google Gemini.</p>
+    <div class="formgrid">
+      <div class="c3"><label>Chave da API do Gemini <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--gold)">(criar grátis aqui)</a></label>
+        <input type="password" id="ia-key" placeholder="Cole a chave AIza…"></div>
+      <div class="c2" style="align-self:end"><button class="btn ghost" id="ia-key-save">Salvar chave</button></div>
+    </div>
+    <div class="formgrid" style="margin-top:10px">
+      <div class="c4"><label>Pergunta (opcional)</label><input id="ia-perg" placeholder="Ex.: onde estou perdendo mais dinheiro? vale a pena continuar no lay 0-0?"></div>
+      <div class="c2" style="align-self:end"><button class="btn" id="ia-run">Analisar minha banca</button></div>
+    </div>
+    <div id="ia-out" style="margin-top:16px;display:none;border:1px solid var(--line);border-radius:12px;padding:16px;line-height:1.65;font-size:13.5px;white-space:pre-wrap"></div>
   </div>
 </section>
 
@@ -902,7 +920,8 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
       <div class="c2"><label>Competição</label><input list="dl-comp" id="f-comp" placeholder="Ex.: Premier League"></div>
       <div class="c3"><label>Mandante</label><input list="dl-times" id="f-mand" placeholder="Time da casa"></div>
       <div class="c3"><label>Visitante</label><input list="dl-times" id="f-vis" placeholder="Time visitante"></div>
-      <div class="c2"><label>Forma de trabalho</label><input list="dl-forma" id="f-forma" placeholder="Ex.: Lay - Favorito"></div>
+      <div class="c2"><label>Forma de trabalho</label><input list="dl-forma" id="f-forma" placeholder="Ex.: Lay 0-1"></div>
+      <div class="c2"><label>Estratégia</label><input list="dl-estrategia" id="f-estr" placeholder="Ex.: Lay placar atual"></div>
       <div class="c2"><label>Mercado</label><input list="dl-merc" id="f-merc" placeholder="Ex.: Match Odds"></div>
       <div class="c2"><label>Tipo</label><select id="f-tipo"><option>Pré Live</option><option>Live</option></select></div>
       <div class="c2"><label>Odd</label><input type="number" step="0.01" min="1" id="f-odd" placeholder="Ex.: 1,85"></div>
@@ -910,6 +929,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
       <div class="c2"><label>Responsabilidade (R$) <span style="color:var(--dim);font-weight:400">· lay</span></label><input type="number" step="0.01" id="f-resp" placeholder="stake × (odd − 1)"><div id="f-resp-hint" class="hint" style="margin:4px 0 0;font-size:11px"></div></div>
       <div class="c2"><label>Filial</label><select id="f-filial"><option value="">— Sem filial</option></select></div>
       <div class="c2"><label>Situação</label><select id="f-sit"><option value="enc">Encerrada</option><option value="pend">Pendente ⏳</option></select></div>
+      <div class="c2"><label>Minuto de saída <span style="color:var(--dim);font-weight:400">· red/cash</span></label><input type="number" min="0" max="130" id="f-min" placeholder="Ex.: 72"></div>
       <div class="c2"><label>P/L (R$)</label>
         <div style="display:flex;gap:6px">
           <input type="number" step="0.01" id="f-pl" placeholder="+ green · − red" style="flex:1">
@@ -964,7 +984,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
     <table>
       <thead><tr>
         <th>Data</th><th>Competição</th><th>Jogo</th><th>Forma de trabalho</th><th>Mercado</th><th>Tipo</th>
-        <th class="num">Odd</th><th class="num">Stake</th><th class="num" title="Responsabilidade: o que você arrisca no lay (stake × (odd − 1)). No back é a própria stake.">Resp.</th><th class="num">P/L</th><th class="num">ROI</th><th></th>
+        <th class="num">Odd</th><th class="num">Stake</th><th class="num" title="Responsabilidade: o que você arrisca no lay (stake × (odd − 1)). No back é a própria stake.">Resp.</th><th class="num">P/L</th><th class="num" title="P/L ÷ valor arriscado (responsabilidade no lay, stake no back)">% Resp.</th><th class="num" title="P/L ÷ banca inicial">% Banca</th><th></th>
       </tr></thead>
       <tbody id="e-tbody"></tbody>
     </table>
@@ -981,6 +1001,11 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
   <div class="grid2">
     <div class="panel"><h2>Times mais lucrativos</h2><div id="a-times-top"></div></div>
     <div class="panel"><h2>Times menos lucrativos</h2><div id="a-times-low"></div></div>
+  </div>
+  <div class="panel">
+    <h2>Por estratégia</h2>
+    <table><thead><tr><th>Estratégia</th><th class="num">Entradas</th><th class="num">Greens</th><th class="num">Reds</th><th class="num">Taxa de acerto</th><th class="num">Odd média</th><th class="num">P/L</th></tr></thead>
+    <tbody id="a-estr"></tbody></table>
   </div>
   <div class="panel">
     <h2>Por forma de trabalho</h2>
@@ -1122,6 +1147,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 <datalist id="dl-casas"></datalist>
 <datalist id="dl-estr-ciclos"></datalist>
 <datalist id="dl-fontes"></datalist>
+<datalist id="dl-estrategia"><option value="Lay placar atual"><option value="Lay placar diferente"><option value="Lay favorito"><option value="Lay zebra"></datalist>
 <datalist id="dl-pais"></datalist>
 <datalist id="dl-times"></datalist>
 <datalist id="dl-forma"></datalist>
@@ -1129,7 +1155,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 
 <script>
 /* ============ CONFIGURAÇÃO DO SUPABASE ============ */
-const APP_VERSAO = "v38";
+const APP_VERSAO = "v39";
 const SUPABASE_URL = "https://zfsmrhsarjzxnsntfwog.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umDFIXKEgoQHjDu8UY-wDA_Sdno9GtB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1578,6 +1604,7 @@ document.querySelectorAll("nav button").forEach(btn=>{
     if(btn.dataset.tab==="banca"){ renderBancaTab(); refreshResumo(); }
     else if(btn.dataset.tab==="geral"){ loadGeral().then(renderGeral).catch(e=>console.error(e)); }
     else if(btn.dataset.tab==="bancageral"){ renderGeralBanca(); Promise.all([refreshResumo(), loadGeral()]).then(renderGeralBanca).catch(e=>console.error(e)); }
+    else if(btn.dataset.tab==="ia"){ if(!dbGeral) loadGeral().catch(()=>{}); }
     else renderAll();
   };
 });
@@ -1696,6 +1723,7 @@ function fillDatalists(){
   set("dl-forma","estrategias", db.bets.map(b=>b.forma));
   set("dl-merc","mercados", db.bets.map(b=>b.mercado));
   set("dl-casas","casas", db.casa.map(b=>b.casa));
+  $("dl-estrategia").innerHTML = [...new Set(["Lay placar atual","Lay placar diferente","Lay favorito","Lay zebra",...db.bets.map(b=>b.estrategia).filter(Boolean)])].map(v=>`<option value="${esc(v)}">`).join("");
   $("dl-fontes").innerHTML = [...new Set(["Junior","Bruno","Minha análise",...db.casa.map(b=>b.fonte).filter(Boolean)])].map(v=>`<option value="${esc(v)}">`).join("");
   fillEstrCiclos();
   $("dl-comp-all").innerHTML = cad.campeonatos.map(c=>`<option value="${esc(c.nome)}">`).join("");
@@ -1788,23 +1816,24 @@ function renderEntradas(){
       <td>${esc(b.comp)||"—"}${b.pais?`<div style="font-size:11px;color:var(--dim)">${esc(b.pais)}</div>`:""}</td>
       <td><b>${esc(b.mand)}</b> ${b.gm!==null&&b.gm!==undefined?`<span class="mono">${b.gm}×${b.gv}</span>`:"×"} <b>${esc(b.vis)}</b>
           ${b.obs?`<div style="font-size:11.5px;color:var(--dim)">${esc(b.obs)}</div>`:""}</td>
-      <td><span class="chip ${isLay?"lay":"back"}">${esc(b.forma)||"—"}</span></td>
+      <td><span class="chip ${isLay?"lay":"back"}">${esc(b.forma)||"—"}</span>${b.estrategia?`<div style="font-size:10.5px;color:var(--dim)">🎯 ${esc(b.estrategia)}</div>`:""}</td>
       <td>${esc(b.mercado)||"—"}</td>
       <td><span class="chip ${b.tipo==="Live"?"live":"pre"}">${b.tipo==="Live"?"Live":"Pré"}</span>${isBot(b)?' <span class="chip st-pendente" title="Entrada importada do robô">BOT</span>':""}${b.filial_id?` <span class="chip back" title="Filial">🏷 ${esc(filialNome(b.filial_id))}</span>`:""}</td>
       <td class="num">${oddFmt(b.odd>0? b.odd : null)}</td>
       <td class="num">${fmt(+b.stake||0)}</td>
       <td class="num">${respDe(b)!=null? fmt(respDe(b)) : `<span style="color:var(--dim)">—</span>`}</td>
-      <td class="num ${b.pendente?"":cls(+b.pl)}">${b.pendente? '<span class="chip st-pendente">Pendente ⏳</span>' : (+b.pl>0?"+":"")+fmt(+b.pl||0)}</td>
+      <td class="num ${b.pendente?"":cls(+b.pl)}">${b.pendente? '<span class="chip st-pendente">Pendente ⏳</span>' : (+b.pl>0?"+":"")+fmt(+b.pl||0)}${!b.pendente && +b.pl<0 && b.minuto? `<div style="font-size:10.5px;color:var(--dim)">⏱ saí aos ${b.minuto}'</div>`:""}</td>
       <td class="num ${!b.pendente&&roi!=null?cls(roi):""}">${!b.pendente&&roi!=null? (roi>0?"+":"")+pct(roi):"—"}</td>
+      <td class="num ${!b.pendente&&(+banca().inicial>0)?cls(+b.pl):""}">${!b.pendente&&(+banca().inicial>0)? ((+b.pl>0?"+":"")+pct(+b.pl/+banca().inicial)):"—"}</td>
       <td><div class="rowactions">
         ${b.pendente?`<button class="iconbtn" style="border-color:var(--gold);color:var(--gold)" onclick="resolverBet('${b.id}')">Resolver</button>`:""}
         <button class="iconbtn" onclick="editBet('${b.id}')">Editar</button>
         <button class="iconbtn" onclick="delBet('${b.id}')">Excluir</button></div></td>
     </tr>`;}).join("")
-  : `<tr><td colspan="12" class="empty">Nenhuma entrada neste período.</td></tr>`;
+  : `<tr><td colspan="13" class="empty">Nenhuma entrada neste período.</td></tr>`;
 }
 function clearForm(){
-  ["f-comp","f-pais","f-mand","f-vis","f-forma","f-merc","f-odd","f-stake","f-resp","f-pl","f-gm","f-gv","f-obs"].forEach(id=>$(id).value="");
+  ["f-comp","f-pais","f-mand","f-vis","f-forma","f-estr","f-merc","f-odd","f-stake","f-resp","f-pl","f-gm","f-gv","f-obs","f-min"].forEach(id=>$(id).value="");
   $("f-resp-hint").innerHTML="";
   $("f-data").value = new Date().toISOString().slice(0,10);
   $("f-tipo").value = "Pré Live";
@@ -1840,6 +1869,8 @@ window.editBet = id=>{
   $("f-odd").value=b.odd||"";
   $("f-stake").value=b.stake;
   $("f-resp").value = b.resp ?? (respDe(b) ?? "");
+  $("f-estr").value = b.estrategia||"";
+  $("f-min").value = b.minuto??"";
   $("f-pl").value=b.pl;
   $("f-gm").value=b.gm??"";
   $("f-gv").value=b.gv??"";
@@ -1869,7 +1900,8 @@ $("f-save").onclick = async ()=>{
     user_id:user.id, banca_id:bancaId, data, pendente,
     filial_id: $("f-filial").value || null,
     comp:g("f-comp"), pais:g("f-pais"), tipo:g("f-tipo"),
-    mand:g("f-mand"), vis:g("f-vis"), forma:g("f-forma"), mercado:g("f-merc"),
+    mand:g("f-mand"), vis:g("f-vis"), forma:g("f-forma"), estrategia:g("f-estr"), mercado:g("f-merc"),
+    minuto:+g("f-min")||null,
     odd:+g("f-odd")||null, stake:+g("f-stake")||0, resp:+g("f-resp")||null, pl:pendente? 0 : (+g("f-pl")||0),
     gm:pendente||g("f-gm")===""?null:+g("f-gm"), gv:pendente||g("f-gv")===""?null:+g("f-gv"),
     obs:g("f-obs")
@@ -1961,6 +1993,14 @@ function renderAnalises(){
      <td class="num ${cls(o.pl)}">${(o.pl>0?"+":"")+fmt(o.pl)}</td></tr>`;
   const bySum = (a,b)=> b[1].pl - a[1].pl;
 
+  const grEstr = agrupa(list,b=>b.estrategia||"Sem estratégia").sort((a,z)=>z[1].pl-a[1].pl);
+  $("a-estr").innerHTML = grEstr.length? grEstr.map(([n,o])=>
+    `<tr><td>🎯 ${esc(n)}</td><td class="num">${o.n}</td>
+      <td class="num pos">${o.g}</td><td class="num neg">${o.r}</td>
+      <td class="num">${(o.g+o.r)? pct(o.g/(o.g+o.r)):"—"}</td>
+      <td class="num">${oddFmt(o.oddN? o.oddS/o.oddN:null)}</td>
+      <td class="num ${cls(o.pl)}">${(o.pl>0?"+":"")+fmt(o.pl)}</td></tr>`).join("")
+    : `<tr><td colspan="7" class="empty">Sem dados no período.</td></tr>`;
   $("a-forma").innerHTML =
     agrupa(list,b=>b.forma).sort(bySum).map(([n,o])=>
       linha(n,o,`<td class="num ${cls(o.pre)}">${(o.pre>0?"+":"")+fmt(o.pre)}</td><td class="num ${cls(o.live)}">${(o.live>0?"+":"")+fmt(o.live)}</td>`)).join("")
@@ -3412,6 +3452,72 @@ function calDiaDetHTML(ops, ds, comBanca){
     ${linhas}</div>`;
 }
 
+
+
+/* ============ IA Coach (Gemini) ============ */
+$("ia-key").value = localStorage.getItem("gb_gemini") || "";
+$("ia-key-save").onclick = ()=>{ localStorage.setItem("gb_gemini", $("ia-key").value.trim()); toast("Chave salva neste navegador."); };
+function iaResumo(){
+  const b = banca();
+  const enc = db.bets.filter(x=>!x.pendente);
+  const agr = (arr,fn)=>{ const m={}; arr.forEach(x=>{ const k=fn(x)||"—"; (m[k] ||= {n:0,g:0,r:0,pl:0}); const o=m[k]; o.n++; o.pl+=+x.pl||0; if(+x.pl>0)o.g++; if(+x.pl<0)o.r++; }); Object.values(m).forEach(o=>o.pl=+o.pl.toFixed(2)); return m; };
+  const resumoBanca = {
+    banca_ativa: b?.nome, tipo: tipoAtivo(), inicial: +b?.inicial||0,
+    saldo_atual: +saldoAtivo().toFixed(2),
+    entradas_encerradas: enc.length,
+    greens: enc.filter(x=>+x.pl>0).length, reds: enc.filter(x=>+x.pl<0).length,
+    pl_total: +enc.reduce((sm,x)=>sm+(+x.pl||0),0).toFixed(2),
+    em_risco_total: +enc.reduce((sm,x)=>sm+riscoDe(x),0).toFixed(2),
+    maiores_reds: enc.filter(x=>+x.pl<0).sort((a,z)=>a.pl-z.pl).slice(0,5).map(x=>({jogo:[x.mand,x.vis].join(" x "), forma:x.forma, estrategia:x.estrategia, odd:+x.odd||null, pl:+x.pl, minuto_saida:x.minuto||null})),
+    por_forma: agr(enc, x=>x.forma),
+    por_estrategia: agr(enc, x=>x.estrategia),
+    por_mercado: agr(enc, x=>x.mercado),
+    por_tipo: agr(enc, x=>x.tipo),
+    por_faixa_odd: agr(enc.filter(x=>+x.odd>0), x=> +x.odd<5?"odd < 5": +x.odd<10?"odd 5–10": +x.odd<15?"odd 10–15":"odd 15+"),
+    reds_com_minuto: enc.filter(x=>+x.pl<0 && x.minuto).map(x=>({minuto:x.minuto, pl:+x.pl, forma:x.forma}))
+  };
+  const geral = dbGeral? {
+    pl_total_todas_bancas: +dbGeral.reduce((sm,r)=>sm+r.pl,0).toFixed(2),
+    operacoes: dbGeral.length,
+    por_banca: (()=>{ const m={}; dbGeral.forEach(r=>{ const nb=(bancas.find(x=>x.id===r.banca_id)||{}).nome||"?"; (m[nb] ||= 0); m[nb]=+(m[nb]+r.pl).toFixed(2); }); return m; })()
+  } : null;
+  return { resumo_banca_ativa: resumoBanca, visao_geral: geral };
+}
+$("ia-run").onclick = async ()=>{
+  const key = ($("ia-key").value||"").trim();
+  if(!key){ toast("Cole sua chave da API do Gemini e clique em Salvar chave.", true); return; }
+  localStorage.setItem("gb_gemini", key);
+  const out = $("ia-out");
+  out.style.display="block"; out.textContent="🤖 Analisando seus números…";
+  $("ia-run").disabled = true;
+  try{
+    const dados = iaResumo();
+    const perg = $("ia-perg").value.trim();
+    const prompt = `Você é um analista experiente de gestão de banca de apostas esportivas (trading esportivo, lay/back em bolsas). Analise os dados JSON abaixo do usuário e responda EM PORTUGUÊS DO BRASIL, direto e prático, sem enrolação, em texto corrido com títulos curtos:
+
+1) DIAGNÓSTICO GERAL — saúde da banca em 2-3 frases.
+2) ONDE ESTÁ ACERTANDO — formas/estratégias/mercados/faixas de odd que estão pagando (com números).
+3) ONDE ESTÁ PECANDO — o que está drenando a banca (com números), incluindo padrão dos maiores reds e dos minutos de saída, se houver.
+4) 3 AÇÕES PRÁTICAS — mudanças concretas de stake, seleção de jogo ou disciplina.
+
+Regras: use os números reais do JSON; se a amostra for pequena, avise; não invente dados; seja honesto se algo estiver ruim.${perg? `\n\nPergunta específica do usuário (priorize respondê-la): ${perg}`:""}
+
+DADOS:
+${JSON.stringify(dados)}`;
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`, {
+      method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ contents:[{ parts:[{ text: prompt }] }], generationConfig:{ temperature:0.4, maxOutputTokens:1400 } })
+    });
+    const j = await r.json();
+    if(j.error) throw new Error(j.error.message||"erro na API");
+    const texto = (j.candidates?.[0]?.content?.parts||[]).map(p=>p.text||"").join("").trim();
+    if(!texto) throw new Error("resposta vazia da IA");
+    out.innerHTML = esc(texto).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/^\* /gm,"• ").replace(/^#+\s*(.+)$/gm,"<b>$1</b>");
+  }catch(e){
+    out.textContent = "❌ Não consegui analisar: " + e.message + "\n\nConfere se a chave está certa (aistudio.google.com/apikey) e tenta de novo.";
+  }
+  $("ia-run").disabled = false;
+};
 
 /* ============ Gaveta (menu hambúrguer) ============ */
 function abrirDrawer(ab){ $("drawer").classList.toggle("aberto", ab); $("drawer-fundo").classList.toggle("aberto", ab); }
