@@ -1155,7 +1155,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 
 <script>
 /* ============ CONFIGURAÇÃO DO SUPABASE ============ */
-const APP_VERSAO = "v39";
+const APP_VERSAO = "v40";
 const SUPABASE_URL = "https://zfsmrhsarjzxnsntfwog.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umDFIXKEgoQHjDu8UY-wDA_Sdno9GtB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3504,14 +3504,32 @@ Regras: use os números reais do JSON; se a amostra for pequena, avise; não inv
 
 DADOS:
 ${JSON.stringify(dados)}`;
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`, {
-      method:"POST", headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ contents:[{ parts:[{ text: prompt }] }], generationConfig:{ temperature:0.4, maxOutputTokens:1400 } })
-    });
-    const j = await r.json();
-    if(j.error) throw new Error(j.error.message||"erro na API");
-    const texto = (j.candidates?.[0]?.content?.parts||[]).map(p=>p.text||"").join("").trim();
-    if(!texto) throw new Error("resposta vazia da IA");
+    const MODELOS_IA = ["gemini-3.6-flash","gemini-flash-latest","gemini-3-flash","gemini-2.5-flash","gemini-2.5-flash-lite"];
+    const salvo = localStorage.getItem("gb_gemini_model");
+    const fila = salvo? [salvo, ...MODELOS_IA.filter(m=>m!==salvo)] : MODELOS_IA;
+    let texto = "", ultimoErro = null;
+    for(const modelo of fila){
+      try{
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${encodeURIComponent(key)}`, {
+          method:"POST", headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ contents:[{ parts:[{ text: prompt }] }], generationConfig:{ temperature:0.4, maxOutputTokens:1400 } })
+        });
+        const j = await r.json();
+        if(j.error){
+          ultimoErro = new Error(j.error.message||"erro na API");
+          /* modelo indisponível/aposentado ou não encontrado → tenta o próximo; erro de chave → para na hora */
+          if(/api key|permission|quota/i.test(j.error.message||"")) throw ultimoErro;
+          continue;
+        }
+        texto = (j.candidates?.[0]?.content?.parts||[]).map(p=>p.text||"").join("").trim();
+        if(texto){ localStorage.setItem("gb_gemini_model", modelo); break; }
+        ultimoErro = new Error("resposta vazia da IA");
+      }catch(e){
+        if(/api key|permission|quota/i.test(e.message||"")) throw e;
+        ultimoErro = e;
+      }
+    }
+    if(!texto) throw (ultimoErro || new Error("nenhum modelo do Gemini respondeu"));
     out.innerHTML = esc(texto).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/^\* /gm,"• ").replace(/^#+\s*(.+)$/gm,"<b>$1</b>");
   }catch(e){
     out.textContent = "❌ Não consegui analisar: " + e.message + "\n\nConfere se a chave está certa (aistudio.google.com/apikey) e tenta de novo.";
