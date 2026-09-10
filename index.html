@@ -441,6 +441,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
       <div class="c2"><label>Objetivo do jogo 1 (%)</label><input type="number" step="0.1" id="cy-n-obj" value="6"></div>
       <div class="c2"><label>Fator de redução (%)</label><input type="number" step="0.1" id="cy-n-fator" value="2"></div>
       <div class="c2"><label>Parar com % de lucro</label><input type="number" step="1" id="cy-n-stop" value="100"></div>
+      <div class="c2"><label>Comissão da casa (%)</label><input type="number" step="0.1" id="cy-n-comissao" value="4.5" placeholder="Ex.: 4,5"></div>
       <div class="c2"><label>Data de início</label><input type="date" id="cy-n-data"></div>
       <div class="c2" style="align-self:end;display:flex;gap:8px">
         <button class="btn" id="cy-n-criar">Criar ciclo</button>
@@ -460,7 +461,11 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
         <div class="c2"><label>Data</label><input type="date" id="cy-data"></div>
         <div class="c2"><label>Jogo</label><input id="cy-jogo" placeholder="Ex.: Real Madrid × Barcelona"></div>
         <div class="c2"><label>Estratégia</label><input list="dl-estr-ciclos" id="cy-estr" placeholder="Ex.: Lay Favorito 1º Tempo"></div>
-        <div class="c2"><label>Lucro (R$)</label><input type="number" step="0.01" id="cy-lucro" placeholder="+ green · − red"></div>
+        <div class="c2"><label>Lucro (R$)</label>
+          <div style="display:flex;gap:6px">
+            <input type="number" step="0.01" id="cy-lucro" placeholder="+ green · − red" style="flex:1">
+            <button class="iconbtn" id="cy-lucro-com" type="button" title="Descontar a comissão da casa do lucro digitado (só quando positivo)">− com.</button>
+          </div></div>
         <div class="c4"><label>Análise</label><input id="cy-analise" placeholder="Anotações do jogo…"></div>
         <div class="c6" style="display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn" id="cy-save">Registrar jogo</button>
@@ -508,6 +513,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
           <div class="c2"><label>Objetivo jogo 1 (%)</label><input type="number" step="0.1" id="cy-p-obj"></div>
           <div class="c2"><label>Fator de redução (%)</label><input type="number" step="0.1" id="cy-p-fator"></div>
           <div class="c2"><label>Parar com % de lucro</label><input type="number" step="1" id="cy-p-stop"></div>
+          <div class="c2"><label>Comissão da casa (%)</label><input type="number" step="0.1" id="cy-p-comissao"></div>
           <div class="c2"><label>Data início</label><input type="date" id="cy-p-ini"></div>
           <div class="c2"><label>Data fim</label><input type="date" id="cy-p-fim"></div>
           <div class="c2"><label>Saque efetuado (R$)</label><input type="number" step="0.01" id="cy-p-saque"></div>
@@ -1155,7 +1161,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 
 <script>
 /* ============ CONFIGURAÇÃO DO SUPABASE ============ */
-const APP_VERSAO = "v40";
+const APP_VERSAO = "v41";
 const SUPABASE_URL = "https://zfsmrhsarjzxnsntfwog.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umDFIXKEgoQHjDu8UY-wDA_Sdno9GtB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3007,6 +3013,7 @@ $("cy-n-criar").onclick = async ()=>{
     obj_jogo1:+$("cy-n-obj").value||0,
     fator_reducao:+$("cy-n-fator").value||0,
     stop_pct:+$("cy-n-stop").value||0,
+    comissao:+$("cy-n-comissao").value||0,
     data_inicio:$("cy-n-data").value||null
   };
   if(!row.banca_inicial){ toast("Informe a banca inicial do ciclo.", true); return; }
@@ -3083,6 +3090,7 @@ $("cy-p-save").onclick = async ()=>{
     obj_jogo1:+$("cy-p-obj").value||0,
     fator_reducao:+$("cy-p-fator").value||0,
     stop_pct:+$("cy-p-stop").value||0,
+    comissao:+$("cy-p-comissao").value||0,
     data_inicio:$("cy-p-ini").value||null,
     data_fim:$("cy-p-fim").value||null,
     saque:+$("cy-p-saque").value||0,
@@ -3155,6 +3163,7 @@ function renderCicloEntradas(){
   /* parâmetros */
   $("cy-p-banca").value=c.banca_inicial; $("cy-p-obj").value=c.obj_jogo1;
   $("cy-p-fator").value=c.fator_reducao; $("cy-p-stop").value=c.stop_pct;
+  $("cy-p-comissao").value = c.comissao ?? 0;
   $("cy-p-ini").value=c.data_inicio||""; $("cy-p-fim").value=c.data_fim||"";
   $("cy-p-saque").value=c.saque||""; $("cy-p-saqued").value=c.saque_data||"";
 }
@@ -3864,6 +3873,14 @@ $("f-stake").addEventListener("input", ()=>fSync("stake"));
 $("f-resp").addEventListener("input", ()=>fSync("resp"));
 $("f-odd").addEventListener("input", ()=>fSync("odd"));
 $("f-forma").addEventListener("input", fRespHint);
+$("cy-lucro-com").onclick = ()=>{
+  const v = +$("cy-lucro").value;
+  if(!v || v<=0){ toast("Digite primeiro o lucro bruto (positivo) — a comissão só desconta dos greens.", true); return; }
+  const c = +(cicloAtivo()?.comissao ?? 0);
+  if(!c){ toast("Defina a Comissão da casa (%) nos parâmetros do ciclo.", true); return; }
+  $("cy-lucro").value = (v*(1-c/100)).toFixed(2);
+  toast(`Comissão de ${String(c).replace(".",",")}% descontada: ${fmt(v)} → ${fmt(+$("cy-lucro").value)}`);
+};
 $("f-pl-com").onclick = ()=>{
   const v = +$("f-pl").value;
   if(!v || v<=0){ toast("Digite primeiro o ganho (positivo) no P/L — a comissão só desconta dos greens.", true); return; }
