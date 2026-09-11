@@ -111,6 +111,7 @@ tbody tr:hover{background:#19222d}
 .bar-l{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
 
 .formgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+.formgrid .c1{grid-column:span 1}
 .formgrid .c2{grid-column:span 2}
 .formgrid .c3{grid-column:span 3}
 .formgrid .c4{grid-column:span 4}
@@ -466,6 +467,10 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
             <input type="number" step="0.01" id="cy-lucro" placeholder="+ green · − red" style="flex:1">
             <button class="iconbtn" id="cy-lucro-com" type="button" title="Descontar a comissão da casa do lucro digitado (só quando positivo)">− com.</button>
           </div></div>
+        <div class="c1"><label>Min. entrada</label><input type="number" min="0" max="130" id="cy-min1" placeholder="15"></div>
+        <div class="c1"><label>Min. saída</label><input type="number" min="0" max="130" id="cy-min2" placeholder="32"></div>
+        <div class="c1"><label>Odd entrada</label><input type="number" step="0.01" min="1" id="cy-odd1" placeholder="3,20"></div>
+        <div class="c1"><label>Odd saída</label><input type="number" step="0.01" min="1" id="cy-odd2" placeholder="1,80"></div>
         <div class="c4"><label>Análise</label><input id="cy-analise" placeholder="Anotações do jogo…"></div>
         <div class="c6" style="display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn" id="cy-save">Registrar jogo</button>
@@ -1161,7 +1166,7 @@ tr.subt td{color:var(--mut);font-weight:700;border-bottom:2px solid var(--line)}
 
 <script>
 /* ============ CONFIGURAÇÃO DO SUPABASE ============ */
-const APP_VERSAO = "v41";
+const APP_VERSAO = "v42";
 const SUPABASE_URL = "https://zfsmrhsarjzxnsntfwog.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umDFIXKEgoQHjDu8UY-wDA_Sdno9GtB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3032,8 +3037,19 @@ function clearCyForm(){
   ["cy-jogo","cy-estr","cy-analise","cy-lucro"].forEach(id=>$(id).value="");
   $("cy-data").value = new Date().toISOString().slice(0,10);
   $("cy-f-title").textContent="Registrar jogo";
+  ["cy-min1","cy-min2","cy-odd1","cy-odd2"].forEach(id=>{ if($(id)) $(id).value=""; });
   $("cy-save").textContent="Registrar jogo";
   $("cy-cancel").style.display="none";
+}
+function expoDe(j){
+  const partes = [];
+  if(j.min_ini!=null && j.min_fim!=null) partes.push(`⏱ ${j.min_ini}'–${j.min_fim}' (${j.min_fim-j.min_ini} min exposto)`);
+  else if(j.min_ini!=null) partes.push(`⏱ entrou aos ${j.min_ini}'`);
+  else if(j.min_fim!=null) partes.push(`⏱ saiu aos ${j.min_fim}'`);
+  const oi = +j.odd_in, oo = +j.odd_out;
+  if(oi>0 && oo>0) partes.push(`odd ${oi.toFixed(2).replace(".",",")} → ${oo.toFixed(2).replace(".",",")}`);
+  else if(oi>0) partes.push(`odd ${oi.toFixed(2).replace(".",",")}`);
+  return partes.join(" · ");
 }
 $("cy-cancel").onclick = clearCyForm;
 $("cy-save").onclick = async ()=>{
@@ -3043,8 +3059,11 @@ $("cy-save").onclick = async ()=>{
     user_id:user.id, banca_id:bancaId, ciclo_id:c.id,
     data:$("cy-data").value||null,
     jogo:$("cy-jogo").value.trim(), estrategia:$("cy-estr").value.trim(),
-    analise:$("cy-analise").value.trim(), lucro:+$("cy-lucro").value||0
+    analise:$("cy-analise").value.trim(), lucro:+$("cy-lucro").value||0,
+    min_ini:+$("cy-min1").value||null, min_fim:+$("cy-min2").value||null,
+    odd_in:+$("cy-odd1").value||null, odd_out:+$("cy-odd2").value||null
   };
+  if(base.min_ini!=null && base.min_fim!=null && base.min_fim<base.min_ini){ toast("O minuto de saída não pode ser antes do de entrada.", true); $("cy-save").disabled=false; return; }
   $("cy-save").disabled=true;
   if(cyEditId){
     const { data:upd, error } = await sb.from("ciclo_jogos").update(base).eq("id", cyEditId).eq("user_id", user.id).select().single();
@@ -3068,6 +3087,8 @@ window.editCyJogo = id=>{
   $("cy-data").value=j.data||"";
   $("cy-jogo").value=j.jogo||""; $("cy-estr").value=j.estrategia||"";
   $("cy-analise").value=j.analise||""; $("cy-lucro").value=j.lucro;
+  $("cy-min1").value=j.min_ini??""; $("cy-min2").value=j.min_fim??"";
+  $("cy-odd1").value=j.odd_in??""; $("cy-odd2").value=j.odd_out??"";
   $("cy-f-title").textContent=`Editando jogo ${j.ordem}`;
   $("cy-save").textContent="Salvar alterações";
   $("cy-cancel").style.display="inline-block";
@@ -3136,7 +3157,7 @@ function renderCicloEntradas(){
   $("cy-tbody").innerHTML = cc.rows.length? cc.rows.map(r=>`
     <tr class="${r.H>0?"g":(r.H<0?"r":"")}">
       <td class="mono">${r.n}${r.cruzou?' <span class="chip st-green">OK</span>':""}</td>
-      <td>${esc(r.jogo.jogo)||"—"}<div style="font-size:11px;color:var(--dim)">${r.jogo.data? dBR(r.jogo.data):""}${r.jogo.analise?` · ${esc(r.jogo.analise)}`:""}</div></td>
+      <td>${esc(r.jogo.jogo)||"—"}<div style="font-size:11px;color:var(--dim)">${r.jogo.data? dBR(r.jogo.data):""}${expoDe(r.jogo)?` · ${expoDe(r.jogo)}`:""}${r.jogo.analise?` · ${esc(r.jogo.analise)}`:""}</div></td>
       <td>${r.jogo.estrategia?`<span class="chip ${/lay/i.test(r.jogo.estrategia)?"lay":"back"}">${esc(r.jogo.estrategia)}</span>`:"—"}</td>
       <td class="num">${fmt(r.D)}</td>
       <td class="num" style="color:var(--dim)">${fmt(r.E)}</td>
